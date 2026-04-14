@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f0f0e">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Vicinity</title>
+
+  <!-- Mapbox GL JS — free tier, no time limit -->
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.css" rel="stylesheet">
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.4.0/mapbox-gl.js"></script>
+
+  <!-- App styles -->
+  <link rel="stylesheet" href="css/styles.css">
+
+  <!-- ⚙ CONFIGURATION ──────────────────────────────────────────────────────
+       Copy config.example.js to config.js and add your Mapbox public token.
+       The Mapbox free tier is sufficient for this app's MVP usage.
+       Get a free token at: https://account.mapbox.com
+  ────────────────────────────────────────────────────────────────────────── -->
+  <script src="config.js" onerror="console.warn('config.js not found — Mapbox map will not render. See README.')"></script>
+</head>
+<body>
+  <div id="app">
+    <!-- Rendered by ui.js -->
+    <div class="boot-splash">
+      <span class="boot-logo">◎</span>
+      <span class="boot-name">Vicinity</span>
+    </div>
+  </div>
+
+  <style>
+    .boot-splash {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      gap: 0.5rem;
+      background: #0f0f0e;
+      color: #E8A87C;
+      font-family: 'Crimson Pro', Georgia, serif;
+      animation: fadeIn 0.4s ease;
+    }
+    .boot-logo { font-size: 2.5rem; }
+    .boot-name { font-size: 1.4rem; font-weight: 300; letter-spacing: 0.12em; color: #e8e5d8; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  </style>
+
+  <!-- ES Module entry point -->
+  <script type="module">
+    import { boot } from './js/ui.js';
+    // Small delay lets the splash render before heavy JS runs
+    requestAnimationFrame(() => setTimeout(boot, 50));
+  </script>
+</body>
+</html>
