@@ -19,6 +19,7 @@ const state = {
   isSearching: false,
   locationStatus: 'idle',      // 'idle' | 'requesting' | 'success' | 'denied' | 'error'
   locationError: null,
+  locationStale: false,        // true if location is from a previous session
 
   // UI
   activeTab: 'map',            // 'map' | 'setup'
@@ -62,6 +63,13 @@ function loadFromStorage() {
   const ui = Storage.getUIState();
   state.activeTab      = ui.lastTab || 'map';
   state.activeFilters  = ui.activeFilters || [];
+  // Restore last known location from previous session
+  const lastLoc = Storage.getLastLocation();
+  if (lastLoc) {
+    state.currentLocation = lastLoc;
+    state.locationStale = true;
+    state.locationStatus = 'stale';
+  }
   emit('loaded', { ...state });
 }
 
@@ -85,6 +93,8 @@ function setLocationStatus(status, error = null) {
 function setCurrentLocation(coords) {
   state.currentLocation = coords;
   state.locationStatus = 'success';
+  state.locationStale = false;
+  Storage.saveLastLocation(coords);
   emit('location:updated', coords);
 }
 
