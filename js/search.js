@@ -46,7 +46,7 @@ const OSM_TAG_MAP = {
   'park':           [{ leisure: 'park' }],
   'hotel':          [{ tourism: 'hotel' }],
   'tourist attraction': [{ tourism: 'attraction' }],
-  // Generic fallback uses broad tag + name search
+  // Generic fallback uses name search
 };
 
 // Build an Overpass QL query for explicit tag sets (e.g. amenity=bar)
@@ -132,6 +132,7 @@ function buildAddressFromTags(tags) {
 
 function parseOSMHours(raw) {
   if (!raw) return null;
+  // Return as-is for now; a full parser is out of MVP scope
   return [raw];
 }
 
@@ -257,9 +258,11 @@ async function runNearbySearch(lat, lon, radiusMeters, categories) {
   const enabled = categories.filter(c => c.enabled);
   if (enabled.length === 0) return [];
 
+  // Run searches with slight delay between them to be Overpass-polite
   const allResults = [];
   for (const cat of enabled) {
     const results = await searchCategory(lat, lon, radiusMeters, cat);
+    // Attach distances
     results.forEach(r => {
       r.distanceMeters = Math.round(distanceMeters(lat, lon, r.latitude, r.longitude));
     });
