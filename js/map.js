@@ -50,8 +50,9 @@ function onLocationUpdated(coords) {
   // Fly to location
   map.flyTo({ center: lngLat, zoom: 15, speed: 1.2 });
 
-  // User dot marker
+  // User dot marker — upgrade from stale if needed
   if (userMarker) {
+    userMarker.getElement().className = 'user-dot';
     userMarker.setLngLat(lngLat);
   } else {
     const el = document.createElement('div');
@@ -193,7 +194,34 @@ function flyTo(lat, lon, zoom = 16) {
   if (map) map.flyTo({ center: [lon, lat], zoom, speed: 1.2 });
 }
 
+// Show a dimmed marker at last known (stale) location and gently fly there
+function showStaleLocation(coords) {
+  if (!map) return;
+  const lngLat = [coords.lon, coords.lat];
+
+  if (userMarker) {
+    userMarker.getElement().className = 'user-dot user-dot--stale';
+    userMarker.setLngLat(lngLat);
+  } else {
+    const el = document.createElement('div');
+    el.className = 'user-dot user-dot--stale';
+    userMarker = new mapboxgl.Marker({ element: el })
+      .setLngLat(lngLat)
+      .addTo(map);
+  }
+
+  map.flyTo({ center: lngLat, zoom: 14, speed: 0.8 });
+}
+
+// Called after a fresh location comes in — upgrade stale marker to live
+function upgradeMarkerToLive() {
+  if (userMarker) {
+    userMarker.getElement().className = 'user-dot';
+  }
+}
+
 export const MapService = {
   init, recenter, flyTo, getMap,
   refreshPOIMarkers, clearPOIMarkers,
+  showStaleLocation, upgradeMarkerToLive,
 };
