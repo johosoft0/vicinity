@@ -276,6 +276,16 @@ function renderApp() {
   initSetupScreen();
   wireNavigation();
   wireStateListeners();
+
+  // Wire bottom sheet close — must happen after innerHTML is set
+  document.getElementById('sheetClose').addEventListener('click', closeBottomSheet);
+
+  // Tap the map backdrop area while sheet is open also closes it
+  document.getElementById('screenMap').addEventListener('click', (e) => {
+    if (State.get().bottomSheetOpen && !e.target.closest('.bottom-sheet')) {
+      closeBottomSheet();
+    }
+  });
 }
 
 // ── Map Screen ────────────────────────────────────────────────────────────────
@@ -314,7 +324,12 @@ function initMapScreen() {
   // Init Mapbox
   const tok = getToken();
   if (tok) {
-    MapService.init('mapContainer', tok);
+    const m = MapService.init('mapContainer', tok);
+    // Show last known location once the map tiles have loaded
+    if (m && State.get().locationStale) {
+      const lastLoc = State.get().currentLocation;
+      m.once('load', () => MapService.showStaleLocation(lastLoc));
+    }
   } else {
     document.getElementById('mapContainer').innerHTML = `
       <div class="map-placeholder">
@@ -389,13 +404,10 @@ function openBottomSheet() {
 }
 
 function closeBottomSheet() {
-  document.getElementById('bottomSheet').classList.remove('open');
+  const sheet = document.getElementById('bottomSheet');
+  if (sheet) sheet.classList.remove('open');
   State.setBottomSheet(false);
 }
-
-document.addEventListener('click', (e) => {
-  if (e.target.id === 'sheetClose') closeBottomSheet();
-});
 
 function renderNearbyList() {
   const results = State.getFilteredResults();
@@ -971,6 +983,22 @@ function wireNavigation() {
 // ── State Listeners ───────────────────────────────────────────────────────────
 
 function wireStateListeners() {
+  // On boot, if we restored a stale location, fire the status banner
+  State.on('loaded', () => {
+    if (State.get().locationStale) {
+      const banner = document.getElementById('statusBanner');
+      const btn = document.getElementById('refreshBtn');
+      if (banner) {
+        banner.textContent = 'Showing last known location — tap Refresh to update';
+        banner.classList.remove('hidden', 'banner--error');
+        banner.classList.add('banner--stale');
+        setTimeout(() => banner.classList.add('hidden'), 6000);
+      }
+      if (btn) {
+        btn.innerHTML = '<span id="refreshIcon">⊙</span> Refresh Location <span class="stale-badge">stale</span>';
+      }
+    }
+  });
   State.on('place:selected', (place) => {
     if (place) renderPlaceDetail(place);
     else document.getElementById('placeDetail')?.classList.add('hidden');
@@ -982,13 +1010,20 @@ function wireStateListeners() {
     const btn = document.getElementById('refreshBtn');
     const icon = document.getElementById('refreshIcon');
 
-    if (status === 'requesting') {
+    if (status === 'stale') {
+      banner.textContent = 'Showing last known location — tap Refresh to update';
+      banner.classList.remove('hidden', 'banner--error');
+      banner.classList.add('banner--stale');
+      if (btn) btn.innerHTML = '<span id="refreshIcon">⊙</span> Refresh Location <span class="stale-badge">stale</span>';
+      setTimeout(() => banner.classList.add('hidden'), 6000);
+    } else if (status === 'requesting') {
       banner.textContent = 'Getting your location…';
-      banner.classList.remove('hidden');
+      banner.classList.remove('hidden', 'banner--stale', 'banner--error');
       if (btn) btn.classList.add('loading');
       if (icon) icon.textContent = '⏳';
     } else if (status === 'success') {
       banner.classList.add('hidden');
+      banner.classList.remove('banner--stale', 'banner--error');
       if (btn) btn.classList.remove('loading');
       if (icon) icon.textContent = '⊙';
     } else if (status === 'denied' || status === 'error') {
