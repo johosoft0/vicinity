@@ -361,6 +361,13 @@ function initMapScreen() {
     document.querySelectorAll('.radius-chip').forEach(c =>
       c.classList.toggle('active', parseInt(c.dataset.r) === r)
     );
+    // Zoom map to fit the selected radius
+    const RADIUS_ZOOM = { 400: 15, 800: 14, 1200: 13 };
+    const zoom = RADIUS_ZOOM[r] ?? 14;
+    const loc = State.get().currentLocation;
+    if (loc) {
+      MapService.getMap()?.easeTo({ center: [loc.lon, loc.lat], zoom, duration: 400 });
+    }
   });
 }
 
@@ -983,8 +990,8 @@ function wireNavigation() {
 // ── State Listeners ───────────────────────────────────────────────────────────
 
 function wireStateListeners() {
-  // On boot, if we restored a stale location, fire the status banner
-  State.on('loaded', () => {
+  // 'loaded' fires during boot before DOM exists — defer one tick
+  State.on('loaded', () => setTimeout(() => {
     if (State.get().locationStale) {
       const banner = document.getElementById('statusBanner');
       const btn = document.getElementById('refreshBtn');
@@ -998,7 +1005,7 @@ function wireStateListeners() {
         btn.innerHTML = '<span id="refreshIcon">⊙</span> Refresh Location <span class="stale-badge">stale</span>';
       }
     }
-  });
+  }, 0));
   State.on('place:selected', (place) => {
     if (place) renderPlaceDetail(place);
     else document.getElementById('placeDetail')?.classList.add('hidden');
@@ -1008,42 +1015,53 @@ function wireStateListeners() {
     const banner = document.getElementById('statusBanner');
     if (!banner) return;
     const btn = document.getElementById('refreshBtn');
-    const icon = document.getElementById('refreshIcon');
+
+    // Helper — rebuild button to canonical state
+    const resetBtn = (stale = false) => {
+      if (!btn) return;
+      btn.classList.remove('loading');
+      btn.innerHTML = stale
+        ? '<span id="refreshIcon">⊙</span> Refresh Location <span class="stale-badge">stale</span>'
+        : '<span id="refreshIcon">⊙</span> Refresh Location';
+    };
 
     if (status === 'stale') {
       banner.textContent = 'Showing last known location — tap Refresh to update';
       banner.classList.remove('hidden', 'banner--error');
       banner.classList.add('banner--stale');
-      if (btn) btn.innerHTML = '<span id="refreshIcon">⊙</span> Refresh Location <span class="stale-badge">stale</span>';
+      resetBtn(true);
       setTimeout(() => banner.classList.add('hidden'), 6000);
     } else if (status === 'requesting') {
       banner.textContent = 'Getting your location…';
       banner.classList.remove('hidden', 'banner--stale', 'banner--error');
-      if (btn) btn.classList.add('loading');
-      if (icon) icon.textContent = '⏳';
+      if (btn) {
+        btn.classList.add('loading');
+        btn.innerHTML = '<span id="refreshIcon">⏳</span> Getting location…';
+      }
     } else if (status === 'success') {
       banner.classList.add('hidden');
       banner.classList.remove('banner--stale', 'banner--error');
-      if (btn) btn.classList.remove('loading');
-      if (icon) icon.textContent = '⊙';
+      resetBtn(false);
     } else if (status === 'denied' || status === 'error') {
       banner.textContent = error || 'Location unavailable';
-      banner.classList.remove('hidden');
+      banner.classList.remove('hidden', 'banner--stale');
       banner.classList.add('banner--error');
-      if (btn) btn.classList.remove('loading');
-      if (icon) icon.textContent = '⊙';
+      resetBtn(false);
       setTimeout(() => banner.classList.add('hidden'), 5000);
     }
   });
 
   State.on('search:started', () => {
     const btn = document.getElementById('refreshBtn');
-    if (btn) btn.textContent = '⏳ Searching…';
+    if (btn) btn.innerHTML = '<span id="refreshIcon">⏳</span> Searching…';
   });
 
   State.on('nearby:updated', (results) => {
     const btn = document.getElementById('refreshBtn');
-    if (btn) btn.innerHTML = '<span id="refreshIcon">⊙</span> Refresh Location';
+    if (btn) {
+      btn.classList.remove('loading');
+      btn.innerHTML = '<span id="refreshIcon">⊙</span> Refresh Location';
+    }
     const count = document.getElementById('nearbyCount');
     if (count) count.textContent = results.length || '≡';
     if (State.get().bottomSheetOpen) renderNearbyList();
