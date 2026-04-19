@@ -334,7 +334,7 @@ input, textarea, select { font: inherit; }
 
 /* ── Bottom Sheet ───────────────────────────────────────────────────────────── */
 .bottom-sheet {
-  position: fixed;
+  position: absolute;
   bottom: var(--nav-h);
   left: 0;
   right: 0;
@@ -403,7 +403,7 @@ input, textarea, select { font: inherit; }
 
 /* ── Place Detail ───────────────────────────────────────────────────────────── */
 .place-detail {
-  position: fixed;
+  position: absolute;
   inset: 0;
   bottom: var(--nav-h);
   z-index: 60;
@@ -820,6 +820,28 @@ textarea.text-input { resize: vertical; }
   font-family: var(--font-mono);
 }
 .token-hint code { background: var(--bg-4); padding: 0.1em 0.25em; border-radius: 3px; }
+
+.user-dot--stale {
+  opacity: 0.45;
+  box-shadow: 0 0 0 3px rgba(232,168,124,0.15);
+}
+.banner--stale {
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+}
+.stale-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  background: rgba(232,168,124,0.2);
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  padding: 0.05rem 0.35rem;
+  margin-left: 0.3rem;
+  vertical-align: middle;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
 
 /* ── Scrollbar ──────────────────────────────────────────────────────────────── */
 ::-webkit-scrollbar { width: 4px; }
