@@ -46,10 +46,10 @@ const OSM_TAG_MAP = {
   'park':           [{ leisure: 'park' }],
   'hotel':          [{ tourism: 'hotel' }],
   'tourist attraction': [{ tourism: 'attraction' }],
-  // Generic fallback uses name search
+  // Generic fallback uses broad tag + name search
 };
 
-// Build an Overpass QL query for a set of OSM tag conditions around a point
+// Build an Overpass QL query for explicit tag sets (e.g. amenity=bar)
 function buildOverpassQuery(lat, lon, radiusMeters, tagSets) {
   const parts = tagSets.flatMap(tagSet => {
     const conditions = Object.entries(tagSet)
@@ -60,17 +60,29 @@ function buildOverpassQuery(lat, lon, radiusMeters, tagSets) {
       `way${conditions}(around:${radiusMeters},${lat},${lon});`,
     ];
   });
-
-  return `[out:json][timeout:15];(${parts.join('')});out center 50;`;
+  return `[out:json][timeout:20];(${parts.join('')});out center 50;`;
 }
 
-// Build a name-based Overpass query (fallback for unmapped categories)
+// Build a broad tag-value search: looks for the term as a value in any of
+// the main OSM classification keys. Catches user-typed terms like "bar",
+// "storage", "gym", "laundry" etc. that aren't in OSM_TAG_MAP.
+function buildBroadTagQuery(lat, lon, radiusMeters, term) {
+  const esc = term.replace(/"/g, '\\"');
+  const keys = ['amenity', 'shop', 'leisure', 'tourism', 'landuse', 'building'];
+  const parts = keys.flatMap(k => [
+    `node["${k}"~"${esc}",i](around:${radiusMeters},${lat},${lon});`,
+    `way["${k}"~"${esc}",i](around:${radiusMeters},${lat},${lon});`,
+  ]);
+  return `[out:json][timeout:20];(${parts.join('')});out center 50;`;
+}
+
+// Name-based regex fallback — searches the place's name field
 function buildNameSearchQuery(lat, lon, radiusMeters, searchTerm) {
-  const escaped = searchTerm.replace(/"/g, '\\"');
-  return `[out:json][timeout:15];(
-    node["name"~"${escaped}",i](around:${radiusMeters},${lat},${lon});
-    way["name"~"${escaped}",i](around:${radiusMeters},${lat},${lon});
-  );out center 30;`;
+  const esc = searchTerm.replace(/"/g, '\\"');
+  return `[out:json][timeout:20];(
+    node["name"~"${esc}",i](around:${radiusMeters},${lat},${lon});
+    way["name"~"${esc}",i](around:${radiusMeters},${lat},${lon});
+  );out center 50;`;
 }
 
 // Normalize an Overpass element to NearbyResult shape
@@ -120,16 +132,19 @@ function buildAddressFromTags(tags) {
 
 function parseOSMHours(raw) {
   if (!raw) return null;
-  // Return as-is for now; a full parser is out of MVP scope
   return [raw];
 }
 
 // Run a category search via Overpass
+// Strategy:
+//   1. If label is in OSM_TAG_MAP → use explicit tag query (most accurate)
+//   2. Otherwise run broad tag-value search across amenity/shop/leisure/etc
+//      for each searchTerm (catches "bar", "storage", "gym", etc.)
+//   3. Also run name-regex search as a parallel pass to catch branded places
 async function searchCategory(lat, lon, radiusMeters, category) {
   const label = category.label.toLowerCase();
   const tagSets = OSM_TAG_MAP[label];
 
-  let query;
   const matchedBy = {
     sourceType: 'category',
     sourceId: category.id,
@@ -137,15 +152,7 @@ async function searchCategory(lat, lon, radiusMeters, category) {
     emoji: category.emoji,
   };
 
-  if (tagSets && tagSets.length > 0) {
-    query = buildOverpassQuery(lat, lon, radiusMeters, tagSets);
-  } else {
-    // Fallback: use first searchTerm for name-based search
-    const term = category.searchTerms?.[0] || category.label;
-    query = buildNameSearchQuery(lat, lon, radiusMeters, term);
-  }
-
-  try {
+  const runQuery = async (query) => {
     const res = await fetch(OVERPASS_URL, {
       method: 'POST',
       body: query,
@@ -153,10 +160,42 @@ async function searchCategory(lat, lon, radiusMeters, category) {
     });
     if (!res.ok) throw new Error(`Overpass HTTP ${res.status}`);
     const data = await res.json();
-
     return (data.elements || [])
       .map(el => normalizeOSMElement(el, matchedBy))
       .filter(Boolean);
+  };
+
+  try {
+    if (tagSets && tagSets.length > 0) {
+      // Known category — single precise query
+      return await runQuery(buildOverpassQuery(lat, lon, radiusMeters, tagSets));
+    }
+
+    // Unknown category — run broad tag search for each searchTerm in parallel
+    const terms = category.searchTerms?.length
+      ? category.searchTerms
+      : [label];
+
+    const queries = terms.flatMap(term => [
+      buildBroadTagQuery(lat, lon, radiusMeters, term),
+      buildNameSearchQuery(lat, lon, radiusMeters, term),
+    ]);
+
+    // Run with small stagger to avoid hammering Overpass
+    const allResults = [];
+    for (const q of queries) {
+      try {
+        const r = await runQuery(q);
+        allResults.push(...r);
+      } catch (e) {
+        console.warn('Overpass sub-query failed:', e.message);
+      }
+      if (queries.indexOf(q) < queries.length - 1) {
+        await new Promise(r => setTimeout(r, 200));
+      }
+    }
+    return allResults;
+
   } catch (e) {
     console.warn('Overpass search failed:', category.label, e);
     return [];
@@ -218,11 +257,9 @@ async function runNearbySearch(lat, lon, radiusMeters, categories) {
   const enabled = categories.filter(c => c.enabled);
   if (enabled.length === 0) return [];
 
-  // Run searches with slight delay between them to be Overpass-polite
   const allResults = [];
   for (const cat of enabled) {
     const results = await searchCategory(lat, lon, radiusMeters, cat);
-    // Attach distances
     results.forEach(r => {
       r.distanceMeters = Math.round(distanceMeters(lat, lon, r.latitude, r.longitude));
     });
