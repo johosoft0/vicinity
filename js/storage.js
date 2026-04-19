@@ -180,11 +180,18 @@ function setOnboarded() {
 // ── UI State ──────────────────────────────────────────────────────────────────
 
 function getUIState() {
-  return get(KEYS.uiState) || { lastTab: 'map', activeFilters: [] };
+  return get(KEYS.uiState) || { lastTab: 'map', activeFilters: [], lastLocation: null };
 }
 
 function saveUIState(state) {
   set(KEYS.uiState, state);
+}
+function saveLastLocation(coords) {
+  saveUIState({ ...getUIState(), lastLocation: coords });
+}
+
+function getLastLocation() {
+  return getUIState().lastLocation || null;
 }
 
 // ── Export / Import ───────────────────────────────────────────────────────────
@@ -229,7 +236,7 @@ export const Storage = {
   getSettings, saveSettings,
   getTranslationCache, getCachedTranslation, setCachedTranslation,
   isOnboarded, setOnboarded,
-  getUIState, saveUIState,
+  getUIState, saveUIState, getLastLocation, saveLastLocation,
   exportBundle, importBundle,
   generateId,
 };
