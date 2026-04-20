@@ -342,27 +342,34 @@ function initMapScreen() {
 
   renderFilterChips();
 
-  document.getElementById('refreshBtn').addEventListener('click', async () => {
+  document.getElementById('refreshBtn').addEventListener('click', async (e) => {
+    e.stopPropagation();
     await State.refreshLocation();
   });
 
-  document.getElementById('recenterBtn').addEventListener('click', () => {
+  document.getElementById('recenterBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
     MapService.recenter();
   });
 
-  document.getElementById('pinBtn').addEventListener('click', () => {
+  document.getElementById('pinBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
     const active = MapService.togglePinMode();
     const btn = document.getElementById('pinBtn');
-    btn.classList.toggle('map-btn--active', active);
+    // Orange/yellow while in pick mode, otherwise reflects manual vs GPS state
+    btn.classList.toggle('map-btn--pin-picking', active);
+    btn.classList.remove('map-btn--pin-set');
     btn.title = active ? 'Click map to place pin — click again to cancel' : 'Drop pin to set location';
     if (active) showToast('Click the map to place your location pin');
   });
 
-  document.getElementById('nearbyBtn').addEventListener('click', () => {
+  document.getElementById('nearbyBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
     openBottomSheet();
   });
 
   document.getElementById('radiusRow').addEventListener('click', (e) => {
+    e.stopPropagation();
     const chip = e.target.closest('.radius-chip');
     if (!chip) return;
     const r = parseInt(chip.dataset.r);
@@ -1235,8 +1242,8 @@ function wireStateListeners() {
       btn.classList.remove('loading');
       const isManual = !!State.get().currentLocation?.manual;
       btn.innerHTML = isManual
-        ? '<span id="refreshIcon">⊙</span> Search Here'
-        : '<span id="refreshIcon">⊙</span> Refresh Location';
+        ? '<span id="refreshIcon">⊙</span> Search Here <span class="loc-badge loc-badge--manual">Manual Location Set</span>'
+        : '<span id="refreshIcon">⊙</span> Refresh Location <span class="loc-badge loc-badge--gps">GPS Location Found</span>';
     }
     const count = document.getElementById('nearbyCount');
     if (count) count.textContent = results.length || '≡';
@@ -1248,20 +1255,21 @@ function wireStateListeners() {
   });
 
   State.on('location:updated', (coords) => {
-    // Update pin button to reflect manual/GPS mode
     const pinBtn = document.getElementById('pinBtn');
     if (pinBtn) {
-      pinBtn.classList.toggle('map-btn--active', !!coords.manual);
+      // Picking mode → orange (handled by pin click)
+      // After drop → green if manual, neutral if GPS
+      pinBtn.classList.remove('map-btn--pin-picking');
+      pinBtn.classList.toggle('map-btn--pin-set', !!coords.manual);
       pinBtn.title = coords.manual
         ? 'Manual pin active — tap to re-place'
         : 'Drop pin to set location manually';
     }
-    // Update refresh button label
     const refreshBtn = document.getElementById('refreshBtn');
     if (refreshBtn && !refreshBtn.classList.contains('loading')) {
       refreshBtn.innerHTML = coords.manual
-        ? '<span id="refreshIcon">⊙</span> Search Here'
-        : '<span id="refreshIcon">⊙</span> Refresh Location';
+        ? '<span id="refreshIcon">⊙</span> Search Here <span class="loc-badge loc-badge--manual">Manual Location Set</span>'
+        : '<span id="refreshIcon">⊙</span> Refresh Location <span class="loc-badge loc-badge--gps">GPS Location Found</span>';
     }
   });
 }
