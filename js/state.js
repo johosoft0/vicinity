@@ -203,8 +203,6 @@ async function refreshLocation() {
   // Manual pin mode — skip GPS entirely
   if (state.currentLocation?.manual) {
     setLocationStatus('requesting');
-    // Small delay so the UI shows "getting location" briefly
-    await new Promise(r => setTimeout(r, 300));
     setCurrentLocation({ ...state.currentLocation, timestamp: Date.now() });
     runNearbySearch(state.currentLocation);
     return state.currentLocation;
@@ -259,7 +257,13 @@ async function refreshLocation() {
   });
 }
 
-// ── Search ────────────────────────────────────────────────────────────────────
+// Re-run search on current location without requesting GPS
+async function searchHere() {
+  if (!state.currentLocation) return;
+  runNearbySearch(state.currentLocation);
+}
+
+
 
 async function runNearbySearch(coords) {
   if (!coords) return;
@@ -326,6 +330,7 @@ export const State = {
   setCurrentLocation,   // exported so map.js pin placement can set location + trigger search
   clearManualLocation,
   refreshLocation,
+  searchHere,
   runNearbySearch,
 
   getFilteredResults,
