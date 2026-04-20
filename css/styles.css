@@ -45,10 +45,35 @@ input, textarea, select { font: inherit; }
 ::selection { background: var(--accent); color: var(--bg); }
 
 /* ── App Shell ─────────────────────────────────────────────────────────────── */
-#app { height: 100vh; height: 100dvh; position: relative; overflow: hidden; }
-.app-shell { display: flex; flex-direction: column; height: 100%; position: relative; }
+#app {
+  height: 100vh;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+.app-shell {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
 .screen { flex: 1; overflow: hidden; min-height: 0; }
 .screen.hidden { display: none; }
+
+/* ── Bottom Nav ─────────────────────────────────────────────────────────────── */
+.bottom-nav {
+  display: flex;
+  height: var(--nav-h);
+  background: var(--bg-2);
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 40;
+}
 
 /* ── Onboarding ────────────────────────────────────────────────────────────── */
 .onboarding {
@@ -195,7 +220,7 @@ input, textarea, select { font: inherit; }
   padding: 0 0.75rem;
 }
 .map-overlay--bottom {
-  bottom: calc(var(--nav-h) + 0.75rem);
+  bottom: 0.75rem;
   left: 0;
   right: 0;
   padding: 0 0.75rem;
@@ -340,7 +365,7 @@ input, textarea, select { font: inherit; }
 /* ── Bottom Sheet ───────────────────────────────────────────────────────────── */
 .bottom-sheet {
   position: absolute;
-  bottom: var(--nav-h);
+  bottom: 0;
   left: 0;
   right: 0;
   z-index: 50;
@@ -410,7 +435,6 @@ input, textarea, select { font: inherit; }
 .place-detail {
   position: absolute;
   inset: 0;
-  bottom: var(--nav-h);
   z-index: 60;
   background: var(--bg-2);
   overflow-y: auto;
@@ -484,16 +508,7 @@ input, textarea, select { font: inherit; }
 .field-icon { flex-shrink: 0; }
 .detail-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; }
 
-/* ── Bottom Nav ─────────────────────────────────────────────────────────────── */
-.bottom-nav {
-  display: flex;
-  height: var(--nav-h);
-  background: var(--bg-2);
-  border-top: 1px solid var(--border);
-  flex-shrink: 0;
-  position: relative;
-  z-index: 40;
-}
+/* ── Nav buttons ─────────────────────────────────────────────────────────────── */
 .nav-btn {
   flex: 1;
   display: flex;
@@ -944,7 +959,5 @@ textarea.text-input { resize: vertical; }
 /* ── Mobile safe areas ──────────────────────────────────────────────────────── */
 @supports (padding: env(safe-area-inset-bottom)) {
   .bottom-nav { padding-bottom: env(safe-area-inset-bottom); height: calc(var(--nav-h) + env(safe-area-inset-bottom)); }
-  .bottom-sheet { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); }
-  .place-detail { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom)); }
-  .map-overlay--bottom { bottom: calc(var(--nav-h) + env(safe-area-inset-bottom) + 0.75rem); }
-}
+  .map-overlay--bottom { bottom: calc(0.75rem + env(safe-area-inset-bottom)); }
+  }
