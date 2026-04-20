@@ -98,6 +98,17 @@ function setCurrentLocation(coords) {
   emit('location:updated', coords);
 }
 
+// Clear manual pin and revert to GPS mode
+function clearManualLocation() {
+  if (state.currentLocation) {
+    state.currentLocation = { ...state.currentLocation, manual: false };
+    Storage.saveLastLocation(state.currentLocation);
+    emit('location:updated', state.currentLocation);
+  }
+  // Trigger a fresh GPS fix
+  refreshLocation();
+}
+
 function setNearbyResults(results) {
   state.nearbyResults = results;
   state.isSearching = false;
@@ -313,6 +324,7 @@ export const State = {
   updateSettings,
 
   setCurrentLocation,   // exported so map.js pin placement can set location + trigger search
+  clearManualLocation,
   refreshLocation,
   runNearbySearch,
 
