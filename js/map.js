@@ -46,9 +46,13 @@ function init(containerId, mapboxToken) {
 
 function onLocationUpdated(coords) {
   const lngLat = [coords.lon, coords.lat];
+  const RADIUS_ZOOM = { 400: 15, 800: 14, 1200: 13 };
+  const zoom = RADIUS_ZOOM[State.get().mapRadius] ?? 14;
 
-  // Fly to location
-  map.flyTo({ center: lngLat, zoom: 15, speed: 1.2 });
+  // Only fly to location for GPS fixes; manual pins are already placed on screen
+  if (!coords.manual) {
+    map.flyTo({ center: lngLat, zoom, speed: 1.2 });
+  }
 
   // User dot marker — upgrade from stale if needed
   if (userMarker) {
@@ -68,9 +72,10 @@ function onLocationUpdated(coords) {
 
 function recenter() {
   const loc = State.get().currentLocation;
-  if (loc) {
-    map.flyTo({ center: [loc.lon, loc.lat], zoom: 15, speed: 1.4 });
-  }
+  if (!loc || !map) return;
+  const RADIUS_ZOOM = { 400: 15, 800: 14, 1200: 13 };
+  const zoom = RADIUS_ZOOM[State.get().mapRadius] ?? 14;
+  map.easeTo({ center: [loc.lon, loc.lat], zoom, duration: 500 });
 }
 
 // ── Radius Circle ─────────────────────────────────────────────────────────────
@@ -205,24 +210,36 @@ function togglePinMode() {
         timestamp: Date.now(),
         manual: true,
       };
-      // Place marker immediately
+
+      // Place or move the user marker, always draggable
       if (userMarker) {
-        userMarker.getElement().className = 'user-dot';
         userMarker.setLngLat([coords.lon, coords.lat]);
+        userMarker.getElement().className = 'user-dot';
       } else {
         const el = document.createElement('div');
         el.className = 'user-dot';
         userMarker = new mapboxgl.Marker({ element: el, draggable: true })
           .setLngLat([coords.lon, coords.lat])
           .addTo(map);
-        // Update coords if user drags the pin
-        userMarker.on('dragend', () => {
-          const ll = userMarker.getLngLat();
-          State.setCurrentLocation({ lat: ll.lat, lon: ll.lng, accuracy: 0, timestamp: Date.now(), manual: true });
-        });
       }
+
+      // Make draggable and wire drag-end to update location + re-search
+      userMarker.setDraggable(true);
+      userMarker.off('dragend'); // clear any previous listener
+      userMarker.on('dragend', () => {
+        const ll = userMarker.getLngLat();
+        const dragged = { lat: ll.lat, lon: ll.lng, accuracy: 0, timestamp: Date.now(), manual: true };
+        updateRadiusCircle(dragged.lat, dragged.lon, State.get().mapRadius);
+        State.setCurrentLocation(dragged);
+        State.runNearbySearch(dragged);
+      });
+
       updateRadiusCircle(coords.lat, coords.lon, State.get().mapRadius);
+
+      // Set location in state AND trigger search
       State.setCurrentLocation(coords);
+      State.runNearbySearch(coords);
+
       // Exit pin mode
       pinMode = false;
       map.getCanvas().style.cursor = '';
