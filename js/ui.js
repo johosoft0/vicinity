@@ -315,6 +315,7 @@ function initMapScreen() {
           <button class="map-btn map-btn--primary" id="refreshBtn" type="button">
             <span id="refreshIcon">⊙</span> Refresh Location
           </button>
+          <button class="map-btn map-btn--icon" id="pinBtn" title="Drop pin to set location" type="button">📍</button>
           <button class="map-btn map-btn--icon" id="recenterBtn" title="Recenter" type="button">⊕</button>
         </div>
       </div>
@@ -347,6 +348,14 @@ function initMapScreen() {
 
   document.getElementById('recenterBtn').addEventListener('click', () => {
     MapService.recenter();
+  });
+
+  document.getElementById('pinBtn').addEventListener('click', () => {
+    const active = MapService.togglePinMode();
+    const btn = document.getElementById('pinBtn');
+    btn.classList.toggle('map-btn--active', active);
+    btn.title = active ? 'Click map to place pin — click again to cancel' : 'Drop pin to set location';
+    if (active) showToast('Click the map to place your location pin');
   });
 
   document.getElementById('nearbyBtn').addEventListener('click', () => {
@@ -603,20 +612,31 @@ function renderSetupSection(section) {
 
 // Categories ──────────────────────────────────────────────────────────────────
 
-function renderCategorySection(body) {
+function renderCategorySection(body, editingId = null) {
   const cats = State.get().categories;
+  const editing = editingId ? cats.find(c => c.id === editingId) : null;
 
   body.innerHTML = `
     <div class="section-header">
       <h2>Categories</h2>
       <button class="btn btn--sm" id="addCatBtn" type="button">+ Add</button>
     </div>
-    <div id="addCatForm" class="inline-form hidden">
-      <input id="newCatEmoji" class="emoji-input" type="text" placeholder="🍣" maxlength="2">
-      <input id="newCatLabel" class="text-input" type="text" placeholder="Category name">
-      <input id="newCatTerms" class="text-input" type="text" placeholder="Search terms (comma-separated)">
+    <div id="addCatForm" class="inline-form ${editing ? '' : 'hidden'}">
+      <div class="emoji-suggest-row">
+        <input id="newCatEmoji" class="emoji-input" type="text" placeholder="🍣" maxlength="2"
+          value="${editing?.emoji || ''}">
+        <span id="catEmojiSuggestChip" class="emoji-suggest-chip hidden"></span>
+      </div>
+      <input id="newCatLabel" class="text-input" type="text"
+        placeholder="Category name" value="${editing?.label || ''}">
+      <input id="newCatTerms" class="text-input" type="text"
+        placeholder="Search terms (comma-separated)"
+        value="${editing?.searchTerms?.join(', ') || ''}">
+      <input type="hidden" id="editingCatId" value="${editingId || ''}">
       <div class="form-actions">
-        <button class="btn btn--primary btn--sm" id="saveCatBtn" type="button">Save</button>
+        <button class="btn btn--primary btn--sm" id="saveCatBtn" type="button">
+          ${editing ? 'Update' : 'Save'}
+        </button>
         <button class="btn btn--ghost btn--sm" id="cancelCatBtn" type="button">Cancel</button>
       </div>
     </div>
@@ -634,6 +654,7 @@ function renderCategorySection(body) {
                 data-action="toggle" data-id="${c.id}" type="button">
                 ${c.enabled ? 'On' : 'Off'}
               </button>
+              <button class="icon-btn" data-action="edit-cat" data-id="${c.id}" title="Edit" type="button">✏️</button>
               <button class="icon-btn" data-action="delete" data-id="${c.id}" type="button">🗑</button>
             </div>
           </div>
@@ -642,6 +663,8 @@ function renderCategorySection(body) {
   `;
 
   body.querySelector('#addCatBtn')?.addEventListener('click', () => {
+    document.getElementById('editingCatId').value = '';
+    document.getElementById('saveCatBtn').textContent = 'Save';
     document.getElementById('addCatForm').classList.toggle('hidden');
   });
 
@@ -649,18 +672,45 @@ function renderCategorySection(body) {
     document.getElementById('addCatForm').classList.add('hidden');
   });
 
+  // Emoji suggestion on label input
+  const catLabelInput = document.getElementById('newCatLabel');
+  const catEmojiInput = document.getElementById('newCatEmoji');
+  const catSuggestChip = document.getElementById('catEmojiSuggestChip');
+
+  catLabelInput?.addEventListener('input', () => {
+    const current = catEmojiInput.value.trim();
+    if (current && current !== '📍') return;
+    const suggested = suggestEmoji(catLabelInput.value);
+    if (suggested) {
+      catSuggestChip.textContent = `Use ${suggested}?`;
+      catSuggestChip.dataset.emoji = suggested;
+      catSuggestChip.classList.remove('hidden');
+    } else {
+      catSuggestChip.classList.add('hidden');
+    }
+  });
+
+  catSuggestChip?.addEventListener('click', () => {
+    catEmojiInput.value = catSuggestChip.dataset.emoji;
+    catSuggestChip.classList.add('hidden');
+  });
+
   body.querySelector('#saveCatBtn')?.addEventListener('click', () => {
-    const emoji = (document.getElementById('newCatEmoji').value.trim() || '📍');
+    const eid = document.getElementById('editingCatId').value;
+    const emoji = document.getElementById('newCatEmoji').value.trim() || '📍';
     const label = document.getElementById('newCatLabel').value.trim();
     const termsRaw = document.getElementById('newCatTerms').value.trim();
     if (!label) return;
     const searchTerms = termsRaw
       ? termsRaw.split(',').map(t => t.trim()).filter(Boolean)
       : [label.toLowerCase()];
+    const existing = eid ? cats.find(c => c.id === eid) : null;
     State.upsertCategory({
-      id: Storage.generateId(),
+      ...(existing || {}),
+      id: eid || Storage.generateId(),
       type: 'category',
-      emoji, label, searchTerms, enabled: true,
+      emoji, label, searchTerms,
+      enabled: existing ? existing.enabled : true,
     });
     renderCategorySection(body);
     renderFilterChips();
@@ -677,37 +727,124 @@ function renderCategorySection(body) {
         renderFilterChips();
       }
     } else if (action.dataset.action === 'toggle') {
-      const cat = State.get().categories.find(c => c.id === id);
+      const cat = cats.find(c => c.id === id);
       if (cat) {
         State.upsertCategory({ ...cat, enabled: !cat.enabled });
         renderCategorySection(body);
         renderFilterChips();
       }
+    } else if (action.dataset.action === 'edit-cat') {
+      renderCategorySection(body, id);
+      document.getElementById('addCatForm')?.scrollIntoView({ behavior: 'smooth' });
     }
   });
 }
 
-// Specific Places ──────────────────────────────────────────────────────────────
+// ── Emoji Suggestion ──────────────────────────────────────────────────────────
 
-function renderSpecificPlacesSection(body) {
+const EMOJI_HINTS = [
+  ['bowl|ramen|noodle|pho|udon|soba',             '🍜'],
+  ['sushi|sashimi|nigiri|maki',                    '🍣'],
+  ['pizza',                                        '🍕'],
+  ['burger|hamburger',                             '🍔'],
+  ['taco|burrito|mexican',                         '🌮'],
+  ['coffee|cafe|espresso|latte|cappuccino',        '☕'],
+  ['tea|boba|bubble',                              '🧋'],
+  ['beer|pub|brewery|tap',                         '🍺'],
+  ['bar|cocktail|lounge|speakeasy|izakaya',        '🍸'],
+  ['wine|winery|vineyard',                         '🍷'],
+  ['ice.?cream|gelato|frozen yogurt|soft serve',   '🍦'],
+  ['bakery|bread|pastry|croissant',                '🥐'],
+  ['donut|doughnut',                               '🍩'],
+  ['cake|dessert|sweet',                           '🎂'],
+  ['grocery|supermarket|market',                   '🛒'],
+  ['convenience|konbini|7.?eleven|lawson|family.?mart', '🏪'],
+  ['pharmacy|drug.?store|chemist',                 '💊'],
+  ['hospital|emergency|urgent care',               '🏥'],
+  ['clinic|doctor|medical',                        '🩺'],
+  ['bank|atm|cash',                                '🏦'],
+  ['post.?office|mail',                            '📮'],
+  ['hotel|hostel|inn|motel|ryokan',                '🏨'],
+  ['park|garden|nature|trail',                     '🌳'],
+  ['museum|gallery|exhibit',                       '🏛️'],
+  ['shrine|jinja|torii',                           '⛩️'],
+  ['temple|cathedral|church|mosque|buddhist',      '🛕'],
+  ['train|station|subway|metro|railway',           '🚃'],
+  ['bus|stop|transit',                             '🚌'],
+  ['airport|terminal|flight',                      '✈️'],
+  ['parking|garage',                               '🅿️'],
+  ['gas|petrol|fuel',                              '⛽'],
+  ['gym|fitness|workout|crossfit',                 '🏋️'],
+  ['bowling|alley',                                '🎳'],
+  ['cinema|movie|theater|theatre',                 '🎬'],
+  ['karaoke',                                      '🎤'],
+  ['arcade|game|gaming',                           '🕹️'],
+  ['spa|massage|onsen|bath|sauna',                 '♨️'],
+  ['hair|barber|salon|beauty',                     '💈'],
+  ['laundry|laundromat|dry.?clean',                '🧺'],
+  ['school|university|college|campus',             '🎓'],
+  ['library',                                      '📚'],
+  ['storage|warehouse|self.?stor',                 '📦'],
+  ['beach|surf|coast|ocean',                       '🏖️'],
+  ['mountain|hiking|ski|snow',                     '⛰️'],
+  ['zoo|aquarium|safari',                          '🦁'],
+  ['stadium|arena|sports',                         '🏟️'],
+  ['golf',                                         '⛳'],
+  ['pool|swimming',                                '🏊'],
+  ['clothes|clothing|fashion|apparel',             '👗'],
+  ['shoes|sneaker|footwear',                       '👟'],
+  ['electronics|tech|computer|phone',              '💻'],
+  ['book|bookstore',                               '📖'],
+  ['toy|kids|children',                            '🧸'],
+  ['flower|florist',                               '💐'],
+  ['pet|vet|animal',                               '🐾'],
+];
+
+function suggestEmoji(label) {
+  if (!label) return null;
+  const lower = label.toLowerCase();
+  for (const [pattern, emoji] of EMOJI_HINTS) {
+    if (new RegExp(pattern, 'i').test(lower)) return emoji;
+  }
+  return null;
+}
+
+// ── Specific Places ──────────────────────────────────────────────────────────
+
+function renderSpecificPlacesSection(body, editingId = null) {
   const places = State.get().specificPlaces;
+  const editing = editingId ? places.find(p => p.id === editingId) : null;
 
   body.innerHTML = `
     <div class="section-header">
       <h2>Specific Places</h2>
       <button class="btn btn--sm" id="addPlaceBtn" type="button">+ Add</button>
     </div>
-    <div id="addPlaceForm" class="inline-form hidden">
-      <input id="newPlaceEmoji" class="emoji-input" type="text" placeholder="📌" maxlength="2">
-      <input id="newPlaceLabel" class="text-input" type="text" placeholder="Place name / custom label">
-      <input id="newPlaceAddress" class="text-input" type="text" placeholder="Search address or name">
+    <div id="placeForm" class="inline-form ${editing ? '' : 'hidden'}">
+      <div class="emoji-suggest-row">
+        <input id="newPlaceEmoji" class="emoji-input" type="text" placeholder="📌" maxlength="2"
+          value="${editing?.emoji || ''}">
+        <span id="emojiSuggestChip" class="emoji-suggest-chip hidden"></span>
+      </div>
+      <input id="newPlaceLabel" class="text-input" type="text"
+        placeholder="Place name / custom label" value="${editing?.label || ''}">
+      <input id="newPlaceAddress" class="text-input" type="text"
+        placeholder="Search address or name" value="${editing?.address || ''}">
       <div id="geocodeResults" class="geocode-results"></div>
-      <input id="newPlaceLat" class="text-input" type="number" placeholder="Latitude" step="any">
-      <input id="newPlaceLon" class="text-input" type="number" placeholder="Longitude" step="any">
-      <textarea id="newPlaceNotes" class="text-input" placeholder="Notes (optional)" rows="2"></textarea>
+      <div class="coord-row">
+        <input id="newPlaceLat" class="text-input" type="number" placeholder="Latitude"
+          step="any" value="${editing?.latitude ?? ''}">
+        <input id="newPlaceLon" class="text-input" type="number" placeholder="Longitude"
+          step="any" value="${editing?.longitude ?? ''}">
+      </div>
+      <textarea id="newPlaceNotes" class="text-input" placeholder="Notes (optional)"
+        rows="2">${editing?.notes || ''}</textarea>
+      <input type="hidden" id="editingPlaceId" value="${editingId || ''}">
       <div class="form-actions">
         <button class="btn btn--ghost btn--sm" id="geocodeBtn" type="button">🔍 Look Up</button>
-        <button class="btn btn--primary btn--sm" id="savePlaceBtn" type="button">Save</button>
+        <button class="btn btn--primary btn--sm" id="savePlaceBtn" type="button">
+          ${editing ? 'Update' : 'Save'}
+        </button>
         <button class="btn btn--ghost btn--sm" id="cancelPlaceBtn" type="button">Cancel</button>
       </div>
     </div>
@@ -726,6 +863,7 @@ function renderSpecificPlacesSection(body) {
                 data-action="toggle-place" data-id="${p.id}" type="button">
                 ${p.enabled ? 'On' : 'Off'}
               </button>
+              <button class="icon-btn" data-action="edit-place" data-id="${p.id}" title="Edit" type="button">✏️</button>
               <button class="icon-btn" data-action="delete-place" data-id="${p.id}" type="button">🗑</button>
             </div>
           </div>
@@ -733,13 +871,41 @@ function renderSpecificPlacesSection(body) {
     }
   `;
 
+  // Show/hide add form
   body.querySelector('#addPlaceBtn')?.addEventListener('click', () => {
-    document.getElementById('addPlaceForm').classList.toggle('hidden');
+    const form = document.getElementById('placeForm');
+    document.getElementById('editingPlaceId').value = '';
+    document.getElementById('savePlaceBtn').textContent = 'Save';
+    form.classList.toggle('hidden');
   });
   body.querySelector('#cancelPlaceBtn')?.addEventListener('click', () => {
-    document.getElementById('addPlaceForm').classList.add('hidden');
+    document.getElementById('placeForm').classList.add('hidden');
   });
 
+  // Emoji suggestion on label input
+  const labelInput = document.getElementById('newPlaceLabel');
+  const emojiInput = document.getElementById('newPlaceEmoji');
+  const suggestChip = document.getElementById('emojiSuggestChip');
+
+  labelInput?.addEventListener('input', () => {
+    const current = emojiInput.value.trim();
+    if (current && current !== '📌') return; // user already set one
+    const suggested = suggestEmoji(labelInput.value);
+    if (suggested) {
+      suggestChip.textContent = `Use ${suggested}?`;
+      suggestChip.dataset.emoji = suggested;
+      suggestChip.classList.remove('hidden');
+    } else {
+      suggestChip.classList.add('hidden');
+    }
+  });
+
+  suggestChip?.addEventListener('click', () => {
+    emojiInput.value = suggestChip.dataset.emoji;
+    suggestChip.classList.add('hidden');
+  });
+
+  // Geocode lookup
   body.querySelector('#geocodeBtn')?.addEventListener('click', async () => {
     const query = document.getElementById('newPlaceAddress').value.trim();
     if (!query || !getToken()) return;
@@ -753,7 +919,6 @@ function renderSpecificPlacesSection(body) {
           <strong>${r.shortName}</strong> — ${r.name}
         </button>
       `).join('');
-      container._results = results;
       container.querySelectorAll('.geocode-result').forEach(btn2 => {
         btn2.addEventListener('click', () => {
           const r = results[parseInt(btn2.dataset.idx)];
@@ -762,17 +927,19 @@ function renderSpecificPlacesSection(body) {
           document.getElementById('newPlaceAddress').value = r.name;
           if (!document.getElementById('newPlaceLabel').value) {
             document.getElementById('newPlaceLabel').value = r.shortName;
+            // Trigger emoji suggestion for geocoded name too
+            labelInput.dispatchEvent(new Event('input'));
           }
           container.innerHTML = '';
         });
       });
-    } catch (e) {
-      console.warn('Geocode error', e);
-    }
+    } catch (e) { console.warn('Geocode error', e); }
     btn.textContent = '🔍 Look Up';
   });
 
+  // Save / update
   body.querySelector('#savePlaceBtn')?.addEventListener('click', () => {
+    const eid = document.getElementById('editingPlaceId').value;
     const emoji = document.getElementById('newPlaceEmoji').value.trim() || '📌';
     const label = document.getElementById('newPlaceLabel').value.trim();
     const address = document.getElementById('newPlaceAddress').value.trim();
@@ -780,19 +947,22 @@ function renderSpecificPlacesSection(body) {
     const lon = parseFloat(document.getElementById('newPlaceLon').value);
     const notes = document.getElementById('newPlaceNotes').value.trim();
     if (!label || isNaN(lat) || isNaN(lon)) {
-      alert('Label and coordinates are required.');
+      showToast('Label and coordinates are required');
       return;
     }
+    const existing = eid ? places.find(p => p.id === eid) : null;
     State.upsertSpecificPlace({
-      id: Storage.generateId(),
+      ...(existing || {}),
+      id: eid || Storage.generateId(),
       type: 'specific_place',
       emoji, label, address, notes,
       latitude: lat, longitude: lon,
-      enabled: true,
+      enabled: existing ? existing.enabled : true,
     });
     renderSpecificPlacesSection(body);
   });
 
+  // Row actions
   body.addEventListener('click', (e) => {
     const action = e.target.closest('[data-action]');
     if (!action) return;
@@ -808,6 +978,9 @@ function renderSpecificPlacesSection(body) {
         State.upsertSpecificPlace({ ...place, enabled: !place.enabled });
         renderSpecificPlacesSection(body);
       }
+    } else if (action.dataset.action === 'edit-place') {
+      renderSpecificPlacesSection(body, id);
+      document.getElementById('placeForm')?.scrollIntoView({ behavior: 'smooth' });
     }
   });
 }
