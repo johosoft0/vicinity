@@ -245,7 +245,7 @@ function renderApp() {
       <div class="screen screen--map" id="screenMap"></div>
       <div class="screen screen--setup hidden" id="screenSetup"></div>
 
-      <!-- Bottom Sheet (Nearby List) -->
+      <!-- Bottom Sheet (Nearby List) — inside app-shell, above nav -->
       <div class="bottom-sheet" id="bottomSheet">
         <div class="sheet-handle"></div>
         <div class="sheet-header">
@@ -257,23 +257,23 @@ function renderApp() {
 
       <!-- Place Detail Overlay -->
       <div class="place-detail hidden" id="placeDetail"></div>
-
-      <!-- Bottom Nav — Nearby | Map | Setup -->
-      <nav class="bottom-nav">
-        <button class="nav-btn" id="navNearby" type="button">
-          <span class="nav-icon">≡</span>
-          <span class="nav-label">Nearby <span id="navNearbyCount"></span></span>
-        </button>
-        <button class="nav-btn nav-btn--active" id="navMap" data-tab="map" type="button">
-          <span class="nav-icon">◎</span>
-          <span class="nav-label">Map</span>
-        </button>
-        <button class="nav-btn" id="navSetup" data-tab="setup" type="button">
-          <span class="nav-icon">⊞</span>
-          <span class="nav-label">Setup</span>
-        </button>
-      </nav>
     </div>
+
+    <!-- Bottom Nav — outside app-shell so it's never covered by overlays -->
+    <nav class="bottom-nav">
+      <button class="nav-btn" id="navNearby" type="button">
+        <span class="nav-icon">≡</span>
+        <span class="nav-label">Nearby <span id="navNearbyCount"></span></span>
+      </button>
+      <button class="nav-btn nav-btn--active" id="navMap" data-tab="map" type="button">
+        <span class="nav-icon">◎</span>
+        <span class="nav-label">Map</span>
+      </button>
+      <button class="nav-btn" id="navSetup" data-tab="setup" type="button">
+        <span class="nav-icon">⊞</span>
+        <span class="nav-label">Setup</span>
+      </button>
+    </nav>
   `;
 
   initMapScreen();
@@ -432,7 +432,7 @@ function renderNearbyList() {
   const body = document.getElementById('sheetBody');
   if (!body) return;
 
-  const count = document.getElementById('nearbyCount');
+  const count = document.getElementById('navNearbyCount');
   if (count) count.textContent = results.length || '';
 
   if (results.length === 0 && specific.length === 0) {
@@ -1293,4 +1293,4 @@ function showToast(msg) {
   document.body.appendChild(t);
   requestAnimationFrame(() => t.classList.add('show'));
   setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2500);
-        }
+          }
