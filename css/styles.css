@@ -45,9 +45,9 @@ input, textarea, select { font: inherit; }
 ::selection { background: var(--accent); color: var(--bg); }
 
 /* ── App Shell ─────────────────────────────────────────────────────────────── */
-#app { height: 100vh; height: 100dvh; overflow: hidden; position: relative; }
-.app-shell { display: flex; flex-direction: column; height: 100%; }
-.screen { flex: 1; overflow: hidden; }
+#app { height: 100vh; height: 100dvh; position: relative; overflow: hidden; }
+.app-shell { display: flex; flex-direction: column; height: 100%; position: relative; }
+.screen { flex: 1; overflow: hidden; min-height: 0; }
 .screen.hidden { display: none; }
 
 /* ── Onboarding ────────────────────────────────────────────────────────────── */
@@ -753,6 +753,41 @@ textarea.text-input { resize: vertical; }
 .mapboxgl-ctrl-bottom-right { bottom: 0.5rem !important; right: 0.5rem !important; }
 .mapboxgl-ctrl-attrib { background: rgba(15,15,14,0.8) !important; color: var(--text-3) !important; font-size: 10px !important; border-radius: var(--radius-sm) !important; }
 .mapboxgl-ctrl-attrib a { color: var(--text-3) !important; }
+
+.map-btn--active {
+  background: var(--accent) !important;
+  color: var(--bg) !important;
+  border-color: var(--accent) !important;
+}
+
+/* ── Emoji Suggestion ───────────────────────────────────────────────────────── */
+.emoji-suggest-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.emoji-suggest-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.65rem;
+  border-radius: 999px;
+  background: var(--accent-glow);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--transition);
+}
+.emoji-suggest-chip:hover { background: rgba(232,168,124,0.25); }
+.emoji-suggest-chip.hidden { display: none; }
+
+/* ── Coord row ──────────────────────────────────────────────────────────────── */
+.coord-row {
+  display: flex;
+  gap: 0.4rem;
+}
+.coord-row .text-input { flex: 1; min-width: 0; }
 
 /* ── Token Setup ────────────────────────────────────────────────────────────── */
 .token-card {
