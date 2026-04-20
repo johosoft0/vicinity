@@ -1209,7 +1209,6 @@ function wireNavigation() {
   // Nearby nav button — opens sheet, doesn't change screen
   document.getElementById('navNearby').addEventListener('click', (e) => {
     e.stopPropagation();
-    // Make sure map screen is visible
     if (State.get().activeTab !== 'map') {
       State.setTab('map');
       document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
@@ -1217,6 +1216,7 @@ function wireNavigation() {
       document.querySelectorAll('.nav-btn').forEach(b =>
         b.classList.toggle('nav-btn--active', b.id === 'navMap')
       );
+      requestAnimationFrame(() => MapService.getMap()?.resize());
     }
     openBottomSheet();
   });
@@ -1233,6 +1233,7 @@ function wireNavigation() {
         b.classList.toggle('nav-btn--active', b.dataset.tab === tab)
       );
       if (tab === 'setup') renderSetupScreen();
+      if (tab === 'map') requestAnimationFrame(() => MapService.getMap()?.resize());
     });
   });
 }
@@ -1266,7 +1267,16 @@ function wireStateListeners() {
     if (!banner) return;
     const btn = document.getElementById('refreshBtn');
 
-    // Helper — rebuild button to canonical state
+    const hideBanner = () => {
+      banner.style.display = 'none';
+      banner.classList.add('hidden');
+    };
+    const showBanner = (text, cls) => {
+      banner.style.display = '';
+      banner.classList.remove('hidden', 'banner--stale', 'banner--error');
+      if (cls) banner.classList.add(cls);
+      banner.textContent = text;
+    };
     const resetBtn = (stale = false) => {
       if (!btn) return;
       btn.classList.remove('loading');
@@ -1276,28 +1286,24 @@ function wireStateListeners() {
     };
 
     if (status === 'stale') {
-      banner.textContent = 'Showing last known location — tap Refresh to update';
-      banner.classList.remove('hidden', 'banner--error');
-      banner.classList.add('banner--stale');
+      showBanner('Showing last known location — tap Refresh to update', 'banner--stale');
       resetBtn(true);
-      setTimeout(() => banner.classList.add('hidden'), 6000);
+      setTimeout(hideBanner, 6000);
     } else if (status === 'requesting') {
-      banner.textContent = 'Getting your location…';
-      banner.classList.remove('hidden', 'banner--stale', 'banner--error');
+      showBanner('Getting your location…');
       if (btn) {
         btn.classList.add('loading');
         btn.innerHTML = '<span id="refreshIcon">⏳</span> Getting location…';
       }
+      // Safety net — always clear after 15s no matter what
+      setTimeout(hideBanner, 15000);
     } else if (status === 'success') {
-      banner.classList.add('hidden');
-      banner.classList.remove('banner--stale', 'banner--error');
+      hideBanner();
       resetBtn(false);
     } else if (status === 'denied' || status === 'error') {
-      banner.textContent = error || 'Location unavailable';
-      banner.classList.remove('hidden', 'banner--stale');
-      banner.classList.add('banner--error');
+      showBanner(error || 'Location unavailable', 'banner--error');
       resetBtn(false);
-      setTimeout(() => banner.classList.add('hidden'), 5000);
+      setTimeout(hideBanner, 5000);
     }
   });
 
@@ -1306,7 +1312,13 @@ function wireStateListeners() {
     if (btn) btn.innerHTML = '<span id="refreshIcon">⏳</span> Searching…';
   });
 
+  // nearby:updated is the definitive "all done" signal — always clear banner here too
   State.on('nearby:updated', (results) => {
+    const banner = document.getElementById('statusBanner');
+    if (banner) {
+      banner.style.display = 'none';
+      banner.classList.add('hidden');
+    }
     const btn = document.getElementById('refreshBtn');
     if (btn) {
       btn.classList.remove('loading');
@@ -1315,10 +1327,21 @@ function wireStateListeners() {
         ? '<span id="refreshIcon">⊙</span> Search Here <span class="loc-badge loc-badge--manual">Manual</span>'
         : '<span id="refreshIcon">⊙</span> Refresh Location <span class="loc-badge loc-badge--gps">GPS</span>';
     }
-    // Update nearby count in nav bar
     const navCount = document.getElementById('navNearbyCount');
     if (navCount) navCount.textContent = results.length ? `(${results.length})` : '';
     if (State.get().bottomSheetOpen) renderNearbyList();
+  });
+
+  // search:error — reset button so it doesn't stay frozen at ⏳
+  State.on('search:error', () => {
+    const btn = document.getElementById('refreshBtn');
+    if (btn) {
+      btn.classList.remove('loading');
+      const isManual = !!State.get().currentLocation?.manual;
+      btn.innerHTML = isManual
+        ? '<span id="refreshIcon">⊙</span> Search Here'
+        : '<span id="refreshIcon">⊙</span> Refresh Location';
+    }
   });
 
   State.on('categories:changed', () => {
@@ -1353,4 +1376,4 @@ function showToast(msg) {
   document.body.appendChild(t);
   requestAnimationFrame(() => t.classList.add('show'));
   setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2500);
-          }
+}
