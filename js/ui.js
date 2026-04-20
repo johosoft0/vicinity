@@ -258,8 +258,12 @@ function renderApp() {
       <!-- Place Detail Overlay -->
       <div class="place-detail hidden" id="placeDetail"></div>
 
-      <!-- Bottom Nav -->
+      <!-- Bottom Nav — Nearby | Map | Setup -->
       <nav class="bottom-nav">
+        <button class="nav-btn" id="navNearby" type="button">
+          <span class="nav-icon">≡</span>
+          <span class="nav-label">Nearby <span id="navNearbyCount"></span></span>
+        </button>
         <button class="nav-btn nav-btn--active" id="navMap" data-tab="map" type="button">
           <span class="nav-icon">◎</span>
           <span class="nav-label">Map</span>
@@ -277,10 +281,8 @@ function renderApp() {
   wireNavigation();
   wireStateListeners();
 
-  // Wire bottom sheet close — must happen after innerHTML is set
   document.getElementById('sheetClose').addEventListener('click', closeBottomSheet);
 
-  // Tap the map backdrop area while sheet is open also closes it
   document.getElementById('screenMap').addEventListener('click', (e) => {
     if (State.get().bottomSheetOpen && !e.target.closest('.bottom-sheet')) {
       closeBottomSheet();
@@ -309,24 +311,20 @@ function initMapScreen() {
           <button class="radius-chip ${State.get().mapRadius === 1200 ? 'active' : ''}" data-r="1200" type="button">15 min</button>
         </div>
         <div class="map-btn-row">
-          <button class="map-btn map-btn--secondary" id="nearbyBtn" type="button">
-            <span id="nearbyCount">≡</span> Nearby
-          </button>
           <button class="map-btn map-btn--primary" id="refreshBtn" type="button">
             <span id="refreshIcon">⊙</span> Refresh Location
           </button>
           <button class="map-btn map-btn--icon" id="pinBtn" title="Drop pin to set location" type="button">📍</button>
+          <button class="map-btn map-btn--icon map-btn--gps-toggle hidden" id="gpsToggleBtn" title="Clear manual pin, use GPS" type="button">⊙ GPS</button>
           <button class="map-btn map-btn--icon" id="recenterBtn" title="Recenter" type="button">⊕</button>
         </div>
       </div>
     </div>
   `;
 
-  // Init Mapbox
   const tok = getToken();
   if (tok) {
     const m = MapService.init('mapContainer', tok);
-    // Show last known location once the map tiles have loaded
     if (m && State.get().locationStale) {
       const lastLoc = State.get().currentLocation;
       m.once('load', () => MapService.showStaleLocation(lastLoc));
@@ -356,16 +354,15 @@ function initMapScreen() {
     e.stopPropagation();
     const active = MapService.togglePinMode();
     const btn = document.getElementById('pinBtn');
-    // Orange/yellow while in pick mode, otherwise reflects manual vs GPS state
     btn.classList.toggle('map-btn--pin-picking', active);
     btn.classList.remove('map-btn--pin-set');
     btn.title = active ? 'Click map to place pin — click again to cancel' : 'Drop pin to set location';
     if (active) showToast('Click the map to place your location pin');
   });
 
-  document.getElementById('nearbyBtn').addEventListener('click', (e) => {
+  document.getElementById('gpsToggleBtn').addEventListener('click', (e) => {
     e.stopPropagation();
-    openBottomSheet();
+    State.clearManualLocation();
   });
 
   document.getElementById('radiusRow').addEventListener('click', (e) => {
@@ -377,13 +374,10 @@ function initMapScreen() {
     document.querySelectorAll('.radius-chip').forEach(c =>
       c.classList.toggle('active', parseInt(c.dataset.r) === r)
     );
-    // Zoom map to fit the selected radius
     const RADIUS_ZOOM = { 400: 15, 800: 14, 1200: 13 };
     const zoom = RADIUS_ZOOM[r] ?? 14;
     const loc = State.get().currentLocation;
-    if (loc) {
-      MapService.getMap()?.easeTo({ center: [loc.lon, loc.lat], zoom, duration: 400 });
-    }
+    if (loc) MapService.getMap()?.easeTo({ center: [loc.lon, loc.lat], zoom, duration: 400 });
   });
 }
 
@@ -1152,10 +1146,26 @@ function renderImportExportSection(body) {
 // ── Navigation ────────────────────────────────────────────────────────────────
 
 function wireNavigation() {
+  // Nearby nav button — opens sheet, doesn't change screen
+  document.getElementById('navNearby').addEventListener('click', (e) => {
+    e.stopPropagation();
+    // Make sure map screen is visible
+    if (State.get().activeTab !== 'map') {
+      State.setTab('map');
+      document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
+      document.getElementById('screenMap').classList.remove('hidden');
+      document.querySelectorAll('.nav-btn').forEach(b =>
+        b.classList.toggle('nav-btn--active', b.id === 'navMap')
+      );
+    }
+    openBottomSheet();
+  });
+
   document.querySelectorAll('[data-tab]').forEach(btn => {
     btn.addEventListener('click', () => {
       const tab = btn.dataset.tab;
       State.setTab(tab);
+      closeBottomSheet();
       document.querySelectorAll('.screen').forEach(s => s.classList.add('hidden'));
       document.getElementById(tab === 'map' ? 'screenMap' : 'screenSetup')
         .classList.remove('hidden');
@@ -1242,11 +1252,12 @@ function wireStateListeners() {
       btn.classList.remove('loading');
       const isManual = !!State.get().currentLocation?.manual;
       btn.innerHTML = isManual
-        ? '<span id="refreshIcon">⊙</span> Search Here <span class="loc-badge loc-badge--manual">Manual Location Set</span>'
-        : '<span id="refreshIcon">⊙</span> Refresh Location <span class="loc-badge loc-badge--gps">GPS Location Found</span>';
+        ? '<span id="refreshIcon">⊙</span> Search Here <span class="loc-badge loc-badge--manual">Manual</span>'
+        : '<span id="refreshIcon">⊙</span> Refresh Location <span class="loc-badge loc-badge--gps">GPS</span>';
     }
-    const count = document.getElementById('nearbyCount');
-    if (count) count.textContent = results.length || '≡';
+    // Update nearby count in nav bar
+    const navCount = document.getElementById('navNearbyCount');
+    if (navCount) navCount.textContent = results.length ? `(${results.length})` : '';
     if (State.get().bottomSheetOpen) renderNearbyList();
   });
 
@@ -1256,20 +1267,19 @@ function wireStateListeners() {
 
   State.on('location:updated', (coords) => {
     const pinBtn = document.getElementById('pinBtn');
+    const gpsBtn = document.getElementById('gpsToggleBtn');
     if (pinBtn) {
-      // Picking mode → orange (handled by pin click)
-      // After drop → green if manual, neutral if GPS
       pinBtn.classList.remove('map-btn--pin-picking');
       pinBtn.classList.toggle('map-btn--pin-set', !!coords.manual);
-      pinBtn.title = coords.manual
-        ? 'Manual pin active — tap to re-place'
-        : 'Drop pin to set location manually';
+      pinBtn.title = coords.manual ? 'Manual pin active — tap to re-place' : 'Drop pin to set location manually';
     }
+    // Show GPS toggle only when manual mode is active
+    if (gpsBtn) gpsBtn.classList.toggle('hidden', !coords.manual);
     const refreshBtn = document.getElementById('refreshBtn');
     if (refreshBtn && !refreshBtn.classList.contains('loading')) {
       refreshBtn.innerHTML = coords.manual
-        ? '<span id="refreshIcon">⊙</span> Search Here <span class="loc-badge loc-badge--manual">Manual Location Set</span>'
-        : '<span id="refreshIcon">⊙</span> Refresh Location <span class="loc-badge loc-badge--gps">GPS Location Found</span>';
+        ? '<span id="refreshIcon">⊙</span> Search Here <span class="loc-badge loc-badge--manual">Manual</span>'
+        : '<span id="refreshIcon">⊙</span> Refresh Location';
     }
   });
 }
@@ -1283,4 +1293,4 @@ function showToast(msg) {
   document.body.appendChild(t);
   requestAnimationFrame(() => t.classList.add('show'));
   setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2500);
-}
+        }
