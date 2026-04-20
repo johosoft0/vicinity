@@ -186,6 +186,60 @@ function createEmojiMarker(emoji, type = 'nearby') {
   return el;
 }
 
+// ── Manual Pin Placement ──────────────────────────────────────────────────────
+
+let pinMode = false;
+let pinModeHandler = null;
+
+function togglePinMode() {
+  pinMode = !pinMode;
+  if (!map) return false;
+
+  if (pinMode) {
+    map.getCanvas().style.cursor = 'crosshair';
+    pinModeHandler = (e) => {
+      const coords = {
+        lat: e.lngLat.lat,
+        lon: e.lngLat.lng,
+        accuracy: 0,
+        timestamp: Date.now(),
+        manual: true,
+      };
+      // Place marker immediately
+      if (userMarker) {
+        userMarker.getElement().className = 'user-dot';
+        userMarker.setLngLat([coords.lon, coords.lat]);
+      } else {
+        const el = document.createElement('div');
+        el.className = 'user-dot';
+        userMarker = new mapboxgl.Marker({ element: el, draggable: true })
+          .setLngLat([coords.lon, coords.lat])
+          .addTo(map);
+        // Update coords if user drags the pin
+        userMarker.on('dragend', () => {
+          const ll = userMarker.getLngLat();
+          State.setCurrentLocation({ lat: ll.lat, lon: ll.lng, accuracy: 0, timestamp: Date.now(), manual: true });
+        });
+      }
+      updateRadiusCircle(coords.lat, coords.lon, State.get().mapRadius);
+      State.setCurrentLocation(coords);
+      // Exit pin mode
+      pinMode = false;
+      map.getCanvas().style.cursor = '';
+      map.off('click', pinModeHandler);
+      pinModeHandler = null;
+    };
+    map.on('click', pinModeHandler);
+  } else {
+    map.getCanvas().style.cursor = '';
+    if (pinModeHandler) {
+      map.off('click', pinModeHandler);
+      pinModeHandler = null;
+    }
+  }
+  return pinMode;
+}
+
 // ── External ──────────────────────────────────────────────────────────────────
 
 function getMap() { return map; }
@@ -224,4 +278,5 @@ export const MapService = {
   init, recenter, flyTo, getMap,
   refreshPOIMarkers, clearPOIMarkers,
   showStaleLocation, upgradeMarkerToLive,
+  togglePinMode,
 };
