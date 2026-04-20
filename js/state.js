@@ -183,16 +183,32 @@ function updateSettings(patch) {
 
 let _refreshDebounce = null;
 
+// If a manual pin has been placed, Refresh re-uses it and skips GPS
 async function refreshLocation() {
   if (state.isSearching) return;
   if (_refreshDebounce) return;
-
   _refreshDebounce = setTimeout(() => { _refreshDebounce = null; }, 2000);
+
+  // Manual pin mode — skip GPS entirely
+  if (state.currentLocation?.manual) {
+    setLocationStatus('requesting');
+    // Small delay so the UI shows "getting location" briefly
+    await new Promise(r => setTimeout(r, 300));
+    setCurrentLocation({ ...state.currentLocation, timestamp: Date.now() });
+    runNearbySearch(state.currentLocation);
+    return state.currentLocation;
+  }
 
   setLocationStatus('requesting');
 
   if (!navigator.geolocation) {
-    setLocationStatus('error', 'Geolocation is not supported by this browser.');
+    // No GPS available — if we have any saved location use it, else error
+    if (state.currentLocation) {
+      setCurrentLocation({ ...state.currentLocation, timestamp: Date.now() });
+      runNearbySearch(state.currentLocation);
+      return state.currentLocation;
+    }
+    setLocationStatus('error', 'Geolocation is not supported. Use the 📍 pin button to set your location manually.');
     return;
   }
 
@@ -204,19 +220,27 @@ async function refreshLocation() {
           lon: pos.coords.longitude,
           accuracy: pos.coords.accuracy,
           timestamp: Date.now(),
+          manual: false,
         };
         setCurrentLocation(coords);
         runNearbySearch(coords);
         resolve(coords);
       },
       (err) => {
+        // GPS failed — if we have a manual pin, use it silently
+        if (state.currentLocation) {
+          setCurrentLocation({ ...state.currentLocation, timestamp: Date.now() });
+          runNearbySearch(state.currentLocation);
+          resolve(state.currentLocation);
+          return;
+        }
         const messages = {
-          1: 'Location access was denied. Please enable it in browser settings.',
-          2: 'Location information is unavailable.',
-          3: 'Location request timed out.',
+          1: 'Location access denied. Use the 📍 pin button to set your location manually.',
+          2: 'Location unavailable. Use the 📍 pin button to set your location manually.',
+          3: 'Location timed out. Use the 📍 pin button to set your location manually.',
         };
         setLocationStatus(err.code === 1 ? 'denied' : 'error',
-          messages[err.code] || 'Unknown location error.');
+          messages[err.code] || 'Location error. Use the 📍 pin button.');
         resolve(null);
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
@@ -288,6 +312,7 @@ export const State = {
   toggleFavorite,
   updateSettings,
 
+  setCurrentLocation,   // exported so map.js pin placement can set location + trigger search
   refreshLocation,
   runNearbySearch,
 
