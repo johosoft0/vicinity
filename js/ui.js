@@ -1233,7 +1233,10 @@ function wireStateListeners() {
     const btn = document.getElementById('refreshBtn');
     if (btn) {
       btn.classList.remove('loading');
-      btn.innerHTML = '<span id="refreshIcon">⊙</span> Refresh Location';
+      const isManual = !!State.get().currentLocation?.manual;
+      btn.innerHTML = isManual
+        ? '<span id="refreshIcon">⊙</span> Search Here'
+        : '<span id="refreshIcon">⊙</span> Refresh Location';
     }
     const count = document.getElementById('nearbyCount');
     if (count) count.textContent = results.length || '≡';
@@ -1242,6 +1245,24 @@ function wireStateListeners() {
 
   State.on('categories:changed', () => {
     renderFilterChips();
+  });
+
+  State.on('location:updated', (coords) => {
+    // Update pin button to reflect manual/GPS mode
+    const pinBtn = document.getElementById('pinBtn');
+    if (pinBtn) {
+      pinBtn.classList.toggle('map-btn--active', !!coords.manual);
+      pinBtn.title = coords.manual
+        ? 'Manual pin active — tap to re-place'
+        : 'Drop pin to set location manually';
+    }
+    // Update refresh button label
+    const refreshBtn = document.getElementById('refreshBtn');
+    if (refreshBtn && !refreshBtn.classList.contains('loading')) {
+      refreshBtn.innerHTML = coords.manual
+        ? '<span id="refreshIcon">⊙</span> Search Here'
+        : '<span id="refreshIcon">⊙</span> Refresh Location';
+    }
   });
 }
 
