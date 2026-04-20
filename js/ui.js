@@ -250,7 +250,7 @@ function renderApp() {
         <div class="sheet-handle"></div>
         <div class="sheet-header">
           <span class="sheet-title">Nearby</span>
-          <button class="sheet-update" id="sheetUpdateBtn" type="button">↻ Update Places</button>
+          <button class="sheet-update" id="sheetUpdateBtn" type="button">↻ Update Places Only</button>
           <button class="sheet-close" id="sheetClose" type="button">×</button>
         </div>
         <div class="sheet-body" id="sheetBody"></div>
