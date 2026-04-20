@@ -806,6 +806,18 @@ textarea.text-input { resize: vertical; }
   color: #64a0ff;
 }
 
+/* GPS toggle — shown next to pin button when manual mode is active */
+.map-btn--gps-toggle {
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid #64a0ff;
+  color: #64a0ff;
+  background: rgba(100,160,255,0.1);
+}
+.map-btn--gps-toggle:hover { background: rgba(100,160,255,0.2); }
+.map-btn--gps-toggle.hidden { display: none !important; }
+
 /* ── Emoji Suggestion ───────────────────────────────────────────────────────── */
 .emoji-suggest-row {
   display: flex;
