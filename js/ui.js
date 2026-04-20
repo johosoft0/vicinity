@@ -250,6 +250,7 @@ function renderApp() {
         <div class="sheet-handle"></div>
         <div class="sheet-header">
           <span class="sheet-title">Nearby</span>
+          <button class="sheet-update" id="sheetUpdateBtn" type="button">↻ Update Places</button>
           <button class="sheet-close" id="sheetClose" type="button">×</button>
         </div>
         <div class="sheet-body" id="sheetBody"></div>
@@ -282,6 +283,15 @@ function renderApp() {
   wireStateListeners();
 
   document.getElementById('sheetClose').addEventListener('click', closeBottomSheet);
+  document.getElementById('sheetUpdateBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('sheetUpdateBtn');
+    if (!State.get().currentLocation) { showToast('No location set yet'); return; }
+    btn.textContent = '⏳ Updating…';
+    btn.disabled = true;
+    await State.searchHere();
+    btn.textContent = '↻ Update Places';
+    btn.disabled = false;
+  });
 
   document.getElementById('screenMap').addEventListener('click', (e) => {
     if (State.get().bottomSheetOpen && !e.target.closest('.bottom-sheet')) {
@@ -1376,4 +1386,4 @@ function showToast(msg) {
   document.body.appendChild(t);
   requestAnimationFrame(() => t.classList.add('show'));
   setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2500);
-}
+    }
