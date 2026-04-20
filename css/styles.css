@@ -281,6 +281,11 @@ input, textarea, select { font: inherit; }
   transition: all var(--transition);
   backdrop-filter: blur(8px);
   box-shadow: var(--shadow);
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.2rem;
 }
 .map-btn--primary {
   flex: 1;
@@ -758,6 +763,47 @@ textarea.text-input { resize: vertical; }
   background: var(--accent) !important;
   color: var(--bg) !important;
   border-color: var(--accent) !important;
+}
+/* Pin button: orange/yellow while picking a location */
+.map-btn--pin-picking {
+  background: var(--accent) !important;
+  color: var(--bg) !important;
+  border-color: var(--accent) !important;
+  animation: pulse-pin 1s ease-in-out infinite;
+}
+/* Pin button: green after manual location is set */
+.map-btn--pin-set {
+  background: rgba(126,200,126,0.2) !important;
+  color: #7ec87e !important;
+  border-color: #7ec87e !important;
+}
+@keyframes pulse-pin {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(232,168,124,0.4); }
+  50%       { box-shadow: 0 0 0 6px rgba(232,168,124,0); }
+}
+
+/* Location badge inside refresh button */
+.loc-badge {
+  display: inline-block;
+  font-size: 0.65rem;
+  font-family: var(--font-mono);
+  border-radius: 999px;
+  padding: 0.05rem 0.4rem;
+  margin-left: 0.35rem;
+  vertical-align: middle;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-weight: 600;
+}
+.loc-badge--manual {
+  background: rgba(126,200,126,0.2);
+  border: 1px solid #7ec87e;
+  color: #7ec87e;
+}
+.loc-badge--gps {
+  background: rgba(100,160,255,0.15);
+  border: 1px solid #64a0ff;
+  color: #64a0ff;
 }
 
 /* ── Emoji Suggestion ───────────────────────────────────────────────────────── */
