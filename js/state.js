@@ -92,9 +92,9 @@ function setLocationStatus(status, error = null) {
 
 function setCurrentLocation(coords) {
   state.currentLocation = coords;
-  state.locationStatus = 'success';
   state.locationStale = false;
   Storage.saveLastLocation(coords);
+  setLocationStatus('success');
   emit('location:updated', coords);
 }
 
