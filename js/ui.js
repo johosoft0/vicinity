@@ -742,72 +742,132 @@ function renderCategorySection(body, editingId = null) {
 }
 
 // ── Emoji Suggestion ──────────────────────────────────────────────────────────
+// Maps individual words (from real emoji names/aliases) to emoji characters.
+// suggestEmoji scores the input label by counting word matches per emoji,
+// returns the highest-scoring one. No regex patterns needed.
 
-const EMOJI_HINTS = [
-  ['bowl|ramen|noodle|pho|udon|soba',             '🍜'],
-  ['sushi|sashimi|nigiri|maki',                    '🍣'],
-  ['pizza',                                        '🍕'],
-  ['burger|hamburger',                             '🍔'],
-  ['taco|burrito|mexican',                         '🌮'],
-  ['coffee|cafe|espresso|latte|cappuccino',        '☕'],
-  ['tea|boba|bubble',                              '🧋'],
-  ['beer|pub|brewery|tap',                         '🍺'],
-  ['bar|cocktail|lounge|speakeasy|izakaya',        '🍸'],
-  ['wine|winery|vineyard',                         '🍷'],
-  ['ice.?cream|gelato|frozen yogurt|soft serve',   '🍦'],
-  ['bakery|bread|pastry|croissant',                '🥐'],
-  ['donut|doughnut',                               '🍩'],
-  ['cake|dessert|sweet',                           '🎂'],
-  ['grocery|supermarket|market',                   '🛒'],
-  ['convenience|konbini|7.?eleven|lawson|family.?mart', '🏪'],
-  ['pharmacy|drug.?store|chemist',                 '💊'],
-  ['hospital|emergency|urgent care',               '🏥'],
-  ['clinic|doctor|medical',                        '🩺'],
-  ['bank|atm|cash',                                '🏦'],
-  ['post.?office|mail',                            '📮'],
-  ['hotel|hostel|inn|motel|ryokan',                '🏨'],
-  ['park|garden|nature|trail',                     '🌳'],
-  ['museum|gallery|exhibit',                       '🏛️'],
-  ['shrine|jinja|torii',                           '⛩️'],
-  ['temple|cathedral|church|mosque|buddhist',      '🛕'],
-  ['train|station|subway|metro|railway',           '🚃'],
-  ['bus|stop|transit',                             '🚌'],
-  ['airport|terminal|flight',                      '✈️'],
-  ['parking|garage',                               '🅿️'],
-  ['gas|petrol|fuel',                              '⛽'],
-  ['gym|fitness|workout|crossfit',                 '🏋️'],
-  ['bowling|alley',                                '🎳'],
-  ['cinema|movie|theater|theatre',                 '🎬'],
-  ['karaoke',                                      '🎤'],
-  ['arcade|game|gaming',                           '🕹️'],
-  ['spa|massage|onsen|bath|sauna',                 '♨️'],
-  ['hair|barber|salon|beauty',                     '💈'],
-  ['laundry|laundromat|dry.?clean',                '🧺'],
-  ['school|university|college|campus',             '🎓'],
-  ['library',                                      '📚'],
-  ['storage|warehouse|self.?stor',                 '📦'],
-  ['beach|surf|coast|ocean',                       '🏖️'],
-  ['mountain|hiking|ski|snow',                     '⛰️'],
-  ['zoo|aquarium|safari',                          '🦁'],
-  ['stadium|arena|sports',                         '🏟️'],
-  ['golf',                                         '⛳'],
-  ['pool|swimming',                                '🏊'],
-  ['clothes|clothing|fashion|apparel',             '👗'],
-  ['shoes|sneaker|footwear',                       '👟'],
-  ['electronics|tech|computer|phone',              '💻'],
-  ['book|bookstore',                               '📖'],
-  ['toy|kids|children',                            '🧸'],
-  ['flower|florist',                               '💐'],
-  ['pet|vet|animal',                               '🐾'],
-];
+const EMOJI_WORDS = {
+  // Food & drink
+  '🍜': ['ramen','noodle','noodles','bowl','pho','udon','soba','soup'],
+  '🍣': ['sushi','sashimi','nigiri','maki','roll','fish','japanese'],
+  '🍕': ['pizza','pizzeria','slice'],
+  '🍔': ['burger','hamburger','cheeseburger','grill','grilled'],
+  '🌮': ['taco','tacos','burrito','mexican','tex','mex','tortilla'],
+  '☕': ['coffee','cafe','café','espresso','latte','cappuccino','mocha','americano'],
+  '🧋': ['tea','boba','bubble','milk','taiwanese'],
+  '🍺': ['beer','pub','brewery','tap','ale','lager','craft','brew'],
+  '🍸': ['bar','cocktail','lounge','drinks','speakeasy','izakaya','nightlife'],
+  '🍷': ['wine','winery','vineyard','sommelier','cellar'],
+  '🍦': ['ice','cream','gelato','frozen','yogurt','soft','serve','dessert','sorbet'],
+  '🥐': ['bakery','bread','pastry','croissant','boulangerie','baked'],
+  '🍩': ['donut','doughnut','donuts'],
+  '🎂': ['cake','cupcake','sweets','sweet','candy','confection'],
+  '🍱': ['bento','lunch','box','japanese','set'],
+  '🥩': ['steak','beef','meat','grill','bbq','barbecue','butcher'],
+  '🍗': ['chicken','wings','fried','poultry'],
+  '🍜': ['noodle'],
+  '🥗': ['salad','healthy','vegetarian','vegan','greens'],
+  '🌶️': ['spicy','thai','indian','curry','hot','pepper'],
+  // Drink
+  '🧃': ['juice','smoothie','fresh','fruit'],
+  // Grocery / retail
+  '🛒': ['grocery','supermarket','market','food','store'],
+  '🏪': ['convenience','konbini','seven','eleven','lawson','family','mart','mini'],
+  '🏬': ['mall','shopping','center','department','store','plaza'],
+  // Health
+  '💊': ['pharmacy','drugstore','drug','chemist','medicine','prescription'],
+  '🏥': ['hospital','emergency','urgent','care','medical','center'],
+  '🩺': ['clinic','doctor','physician','health','dental','dentist','eye','optician'],
+  // Finance
+  '🏦': ['bank','banking','atm','cash','credit','union','financial'],
+  '💴': ['atm','cash','money','exchange','currency'],
+  // Services
+  '📮': ['post','office','mail','postal','shipping','ups','fedex'],
+  '✂️': ['hair','barber','salon','cut','beauty','stylist','grooming'],
+  '💈': ['barber','barbershop','shave'],
+  '🧺': ['laundry','laundromat','dry','clean','wash','cleaners'],
+  '🔧': ['repair','fix','service','mechanic','maintenance'],
+  // Lodging
+  '🏨': ['hotel','hostel','inn','motel','ryokan','lodge','resort','accommodation'],
+  '⛺': ['camp','camping','campsite'],
+  // Transport
+  '🚃': ['train','station','subway','metro','railway','rail','transit','commuter'],
+  '🚌': ['bus','stop','terminal','coach'],
+  '✈️': ['airport','terminal','flight','airline','departures','arrivals'],
+  '🅿️': ['parking','garage','lot','valet'],
+  '⛽': ['gas','petrol','fuel','station','diesel'],
+  '🚢': ['ferry','boat','port','cruise','pier'],
+  // Nature / outdoors
+  '🌳': ['park','garden','nature','trail','botanical','green','reserve'],
+  '🏖️': ['beach','surf','coast','ocean','sea','shore','bay'],
+  '⛰️': ['mountain','hiking','trek','ski','snow','alpine','summit'],
+  '🌊': ['surf','surfing','wave','beach','ocean'],
+  // Culture / tourism
+  '🏛️': ['museum','gallery','exhibit','art','history','science','natural'],
+  '⛩️': ['shrine','jinja','torii','shinto'],
+  '🛕': ['temple','cathedral','church','mosque','buddhist','hindu','worship'],
+  '🗼': ['tower','landmark','monument','observation'],
+  '🎡': ['amusement','park','rides','fun','fair','carnival'],
+  // Entertainment
+  '🎬': ['cinema','movie','theater','theatre','film','multiplex','imax'],
+  '🎤': ['karaoke','singing','music','live'],
+  '🕹️': ['arcade','game','gaming','esports','video'],
+  '🎳': ['bowling','alley','lanes'],
+  '⛳': ['golf','course','putting','driving','range'],
+  '🏊': ['pool','swimming','aquatic','lap','water'],
+  '🏋️': ['gym','fitness','workout','crossfit','weights','training','studio'],
+  '🧘': ['yoga','pilates','meditation','wellness','stretch'],
+  '🎭': ['theater','theatre','performance','opera','ballet','show'],
+  '🎨': ['art','gallery','studio','craft','painting','creative'],
+  // Spa / wellness
+  '♨️': ['spa','massage','onsen','bath','sauna','hot','spring','thermal'],
+  // Education
+  '🎓': ['school','university','college','campus','academy','institute','education'],
+  '📚': ['library','books','reading','study'],
+  // Misc services
+  '📦': ['storage','warehouse','self','stor','moving','boxes','depot'],
+  '🐾': ['pet','vet','veterinary','animal','shelter','grooming','kennel'],
+  '💐': ['flower','florist','floral','bouquet','garden'],
+  '🧸': ['toy','toys','kids','children','baby','play'],
+  '👗': ['clothes','clothing','fashion','apparel','boutique','dress'],
+  '👟': ['shoes','sneaker','sneakers','footwear','boots'],
+  '💻': ['electronics','tech','computer','phone','devices','gadget','apple','samsung'],
+  '📖': ['book','bookstore','books','reading'],
+  '🏟️': ['stadium','arena','sports','venue','field','court'],
+  '🦁': ['zoo','aquarium','safari','wildlife','animals'],
+  '🏕️': ['camp','outdoor','hiking','wilderness'],
+};
+
+// Flat word→emoji index built once
+const _EMOJI_INDEX = (() => {
+  const idx = {};
+  for (const [emoji, words] of Object.entries(EMOJI_WORDS)) {
+    for (const word of words) {
+      if (!idx[word]) idx[word] = [];
+      idx[word].push(emoji);
+    }
+  }
+  return idx;
+})();
 
 function suggestEmoji(label) {
   if (!label) return null;
-  const lower = label.toLowerCase();
-  for (const [pattern, emoji] of EMOJI_HINTS) {
-    if (new RegExp(pattern, 'i').test(lower)) return emoji;
+  const words = label.toLowerCase().split(/[\s\-_\/,]+/).filter(w => w.length > 2);
+  const scores = {};
+  for (const word of words) {
+    // Exact match
+    if (_EMOJI_INDEX[word]) {
+      for (const e of _EMOJI_INDEX[word]) scores[e] = (scores[e] || 0) + 2;
+    }
+    // Partial match (word is substring of an index word or vice versa)
+    for (const [key, emojis] of Object.entries(_EMOJI_INDEX)) {
+      if (key !== word && (key.includes(word) || word.includes(key))) {
+        for (const e of emojis) scores[e] = (scores[e] || 0) + 1;
+      }
+    }
   }
-  return null;
+  if (Object.keys(scores).length === 0) return null;
+  return Object.entries(scores).sort((a, b) => b[1] - a[1])[0][0];
 }
 
 // ── Specific Places ──────────────────────────────────────────────────────────
