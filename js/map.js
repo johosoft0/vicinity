@@ -31,6 +31,10 @@ function init(containerId, mapboxToken) {
   map.addControl(new mapboxgl.AttributionControl({ compact: true }), 'bottom-right');
 
   map.on('load', () => {
+    // Force resize — in PWA standalone mode the container dimensions may not
+    // be settled when the map first initialises, causing a black canvas.
+    map.resize();
+
     State.on('location:updated', onLocationUpdated);
     State.on('nearby:updated', onNearbyUpdated);
     State.on('radius:changed', onRadiusChanged);
@@ -38,6 +42,9 @@ function init(containerId, mapboxToken) {
       refreshPOIMarkers(State.getFilteredResults(), State.getSpecificPlacesInRange());
     });
   });
+
+  // Second resize after a short delay covers slower devices / iOS standalone
+  setTimeout(() => map?.resize(), 300);
 
   return map;
 }
