@@ -78,12 +78,38 @@ function buildNameSearchQuery(lat, lon, radiusMeters, term) {
 
 // ── Fetch helper ──────────────────────────────────────────────────────────────
 
+const OVERPASS_STATUS_URL = 'https://overpass-api.de/api/status';
+
+// Parse seconds until next slot from Overpass status page
+async function getWaitSeconds() {
+  try {
+    const res = await fetch(OVERPASS_STATUS_URL);
+    const text = await res.text();
+    // Status lines look like: "Slot available after: 2024-01-01T00:00:05Z, in 5 seconds."
+    const match = text.match(/in\s+(\d+)\s+seconds/i);
+    if (match) return parseInt(match[1]);
+    // Fallback: look for slots occupied lines
+    const slots = text.match(/(\d+)\s+slots?\s+available/i);
+    if (slots && parseInt(slots[1]) > 0) return 0;
+    return 30; // conservative fallback
+  } catch {
+    return 30;
+  }
+}
+
 async function fetchOverpass(query) {
   const res = await fetch(OVERPASS_URL, {
     method: 'POST',
     body: query,
     headers: { 'Content-Type': 'text/plain' },
   });
+  if (res.status === 429 || res.status === 504) {
+    const wait = await getWaitSeconds();
+    const err = new Error(`rate_limited:${wait}`);
+    err.rateLimited = true;
+    err.waitSeconds = wait || 30;
+    throw err;
+  }
   if (!res.ok) throw new Error(`Overpass HTTP ${res.status}`);
   const data = await res.json();
   return data.elements || [];
@@ -175,12 +201,11 @@ async function runNearbySearch(lat, lon, radiusMeters, categories) {
           }
           return results;
         })
-        .catch(e => { console.warn('Batch Overpass query failed:', e.message); return []; })
+        .catch(e => { if (e.rateLimited) throw e; console.warn('Batch query failed:', e.message); return []; })
     );
   }
 
   // Unknown categories: all queries fired in parallel, no delay
-  // Previously: 2 serial requests per term + 200ms delay. Now: all parallel.
   for (const cat of unknown) {
     const terms = cat.searchTerms?.length ? cat.searchTerms : [cat.label.toLowerCase()];
     const matchedBy = {
@@ -193,12 +218,12 @@ async function runNearbySearch(lat, lon, radiusMeters, categories) {
       promises.push(
         fetchOverpass(buildBroadTagQuery(lat, lon, radiusMeters, term))
           .then(els => els.map(el => normalizeOSMElement(el, matchedBy)).filter(Boolean))
-          .catch(() => [])
+          .catch(e => { if (e.rateLimited) throw e; return []; })
       );
       promises.push(
         fetchOverpass(buildNameSearchQuery(lat, lon, radiusMeters, term))
           .then(els => els.map(el => normalizeOSMElement(el, matchedBy)).filter(Boolean))
-          .catch(() => [])
+          .catch(e => { if (e.rateLimited) throw e; return []; })
       );
     }
   }
