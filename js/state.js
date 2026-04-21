@@ -296,15 +296,11 @@ async function runNearbySearch(coords) {
     const results = await Search.runNearbySearch(
       coords.lat, coords.lon, state.mapRadius, enabledCats
     );
-    // Hard-clip to mapRadius — Overpass way centroids can drift outside the circle
-    const clipped = results.filter(r =>
-      r.distanceMeters == null || r.distanceMeters <= state.mapRadius
-    );
-    setNearbyResults(clipped);
-    if (state.settings.autoOpenNearbyAfterRefresh && clipped.length > 0) {
+    setNearbyResults(results);
+    if (state.settings.autoOpenNearbyAfterRefresh && results.length > 0) {
       setBottomSheet(true);
     }
-    translateResultNames(clipped);
+    translateResultNames(results);
   } catch (e) {
     console.error('Search error:', e);
     setIsSearching(false);
