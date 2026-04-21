@@ -1389,4 +1389,4 @@ function showToast(msg) {
   document.body.appendChild(t);
   requestAnimationFrame(() => t.classList.add('show'));
   setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2500);
-          }
+}
