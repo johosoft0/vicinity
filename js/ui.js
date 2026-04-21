@@ -462,12 +462,14 @@ function renderNearbyList() {
   body.innerHTML = allItems.map(item => {
     const dist = item.distanceMeters != null
       ? Search.formatDistance(item.distanceMeters) : '—';
+    const displayName = item.translatedName || item.name;
+    const secondaryName = item.translatedName ? item.name : (item.localName || null);
     return `
       <div class="nearby-row" data-id="${item.id}">
         <span class="nearby-emoji">${item.matchedBy?.emoji || item.emoji || '📍'}</span>
         <div class="nearby-info">
-          <div class="nearby-name">${item.name}</div>
-          ${item.localName ? `<div class="nearby-local">${item.localName}</div>` : ''}
+          <div class="nearby-name">${displayName}</div>
+          ${secondaryName ? `<div class="nearby-local">${secondaryName}</div>` : ''}
           <div class="nearby-meta">
             <span class="nearby-dist">${dist}</span>
             <span class="nearby-cat">${item.matchedBy?.sourceLabel || item.categoryLabel || ''}</span>
@@ -509,9 +511,8 @@ function renderPlaceDetail(place) {
         </button>
       </div>
       <div class="detail-emoji">${place.matchedBy?.emoji || place.emoji || '📍'}</div>
-      <h2 class="detail-name">${place.name || place.label}</h2>
-      ${place.localName ? `<p class="detail-local">${place.localName}</p>` : ''}
-      ${place.translatedName ? `<p class="detail-translated">${place.translatedName}</p>` : ''}
+      <h2 class="detail-name">${place.translatedName || place.name || place.label}</h2>
+      ${(place.translatedName && place.name) ? `<p class="detail-local">${place.name}</p>` : (place.localName ? `<p class="detail-local">${place.localName}</p>` : '')}
 
       <div class="detail-chips">
         ${dist ? `<span class="detail-chip">📏 ${dist}</span>` : ''}
@@ -534,13 +535,15 @@ function renderPlaceDetail(place) {
       </div>
 
       <div class="detail-actions">
-        ${place.address || (place.latitude && place.longitude) ? `
-          <a class="btn btn--outline"
-            href="https://maps.google.com/?q=${place.latitude},${place.longitude}"
-            target="_blank" rel="noopener">
-            Open in Maps
-          </a>
-        ` : ''}
+        ${place.latitude && place.longitude ? (() => {
+          const name = encodeURIComponent(place.name || place.label || '');
+          const query = name
+            ? `${name}+${place.latitude},${place.longitude}`
+            : `${place.latitude},${place.longitude}`;
+          return `<a class="btn btn--outline"
+            href="https://www.google.com/maps/search/?api=1&query=${query}"
+            target="_blank" rel="noopener">Open in Maps</a>`;
+        })() : ''}
         ${place.latitude && place.longitude && getToken() ? `
           <button class="btn btn--ghost" id="detailFlyTo" type="button">Show on Map</button>
         ` : ''}
@@ -1386,4 +1389,4 @@ function showToast(msg) {
   document.body.appendChild(t);
   requestAnimationFrame(() => t.classList.add('show'));
   setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2500);
-}
+          }
