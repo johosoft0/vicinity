@@ -302,9 +302,13 @@ async function runNearbySearch(coords) {
     }
     translateResultNames(results);
   } catch (e) {
-    console.error('Search error:', e);
     setIsSearching(false);
-    emit('search:error', e.message);
+    if (e.rateLimited) {
+      emit('search:ratelimit', e.waitSeconds || 30);
+    } else {
+      console.error('Search error:', e);
+      emit('search:error', e.message);
+    }
   }
 }
 
