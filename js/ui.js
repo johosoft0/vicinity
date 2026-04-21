@@ -1361,6 +1361,10 @@ function wireStateListeners() {
     renderFilterChips();
   });
 
+  State.on('search:ratelimit', (seconds) => {
+    showRateLimitToast(seconds);
+  });
+
   State.on('location:updated', (coords) => {
     const pinBtn = document.getElementById('pinBtn');
     const gpsBtn = document.getElementById('gpsToggleBtn');
@@ -1389,4 +1393,40 @@ function showToast(msg) {
   document.body.appendChild(t);
   requestAnimationFrame(() => t.classList.add('show'));
   setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2500);
+}
+
+let _rateLimitTimer = null;
+
+function showRateLimitToast(seconds) {
+  // Clear any existing rate limit toast
+  document.getElementById('rateLimitToast')?.remove();
+  if (_rateLimitTimer) { clearInterval(_rateLimitTimer); _rateLimitTimer = null; }
+
+  const t = document.createElement('div');
+  t.className = 'toast toast--ratelimit';
+  t.id = 'rateLimitToast';
+  document.body.appendChild(t);
+
+  let remaining = Math.max(seconds, 1);
+
+  const update = () => {
+    t.innerHTML = `Overpass busy — retrying in <strong>${remaining}s</strong><br>
+      <span style="font-size:0.7rem;opacity:0.7">Free search server slot limit reached</span>`;
+  };
+  update();
+  requestAnimationFrame(() => t.classList.add('show'));
+
+  _rateLimitTimer = setInterval(() => {
+    remaining--;
+    if (remaining <= 0) {
+      clearInterval(_rateLimitTimer);
+      _rateLimitTimer = null;
+      t.classList.remove('show');
+      setTimeout(() => t.remove(), 300);
+      // Auto-retry
+      State.refreshLocation();
+    } else {
+      update();
+    }
+  }, 1000);
 }
