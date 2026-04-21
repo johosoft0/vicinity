@@ -1,11 +1,8 @@
 // search.js — POI search via Overpass API (OpenStreetMap)
-// Free, no key, rich POI tags, great for category-based nearby search
-// Also handles Mapbox geocoding for specific place resolution
 
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
 const MAPBOX_GEOCODE_URL = 'https://api.mapbox.com/geocoding/v5/mapbox.places';
 
-// OSM tag mappings for common categories
 const OSM_TAG_MAP = {
   'sushi':              [{ amenity: 'restaurant', cuisine: 'sushi' }, { amenity: 'restaurant', cuisine: 'japanese' }],
   'ramen':              [{ amenity: 'restaurant', cuisine: 'ramen' }],
@@ -44,7 +41,6 @@ const OSM_TAG_MAP = {
 
 // ── Query builders ────────────────────────────────────────────────────────────
 
-// Single batched Overpass union query — all tag sets in ONE request
 function buildBatchQuery(lat, lon, radiusMeters, tagSets) {
   const parts = tagSets.flatMap(tagSet => {
     const cond = Object.entries(tagSet).map(([k, v]) => `["${k}"="${v}"]`).join('');
@@ -56,7 +52,6 @@ function buildBatchQuery(lat, lon, radiusMeters, tagSets) {
   return `[out:json][timeout:25];(${parts.join('')});out center 100;`;
 }
 
-// Broad tag-value search for unmapped categories
 function buildBroadTagQuery(lat, lon, radiusMeters, term) {
   const esc = term.replace(/"/g, '\\"');
   const keys = ['amenity', 'shop', 'leisure', 'tourism', 'landuse', 'building'];
@@ -67,7 +62,6 @@ function buildBroadTagQuery(lat, lon, radiusMeters, term) {
   return `[out:json][timeout:20];(${parts.join('')});out center 50;`;
 }
 
-// Name regex fallback
 function buildNameSearchQuery(lat, lon, radiusMeters, term) {
   const esc = term.replace(/"/g, '\\"');
   return `[out:json][timeout:20];(
@@ -78,39 +72,17 @@ function buildNameSearchQuery(lat, lon, radiusMeters, term) {
 
 // ── Fetch helper ──────────────────────────────────────────────────────────────
 
-const OVERPASS_STATUS_URL = 'https://overpass-api.de/api/status';
-
-// Parse seconds until next slot from Overpass status page
-async function getWaitSeconds() {
-  try {
-    const res = await fetch(OVERPASS_STATUS_URL);
-    const text = await res.text();
-    // Status lines look like: "Slot available after: 2024-01-01T00:00:05Z, in 5 seconds."
-    const match = text.match(/in\s+(\d+)\s+seconds/i);
-    if (match) return parseInt(match[1]);
-    // Fallback: look for slots occupied lines
-    const slots = text.match(/(\d+)\s+slots?\s+available/i);
-    if (slots && parseInt(slots[1]) > 0) return 0;
-    return 30; // conservative fallback
-  } catch {
-    return 30;
-  }
-}
-
 async function fetchOverpass(query) {
   const res = await fetch(OVERPASS_URL, {
     method: 'POST',
     body: query,
     headers: { 'Content-Type': 'text/plain' },
   });
-  if (res.status === 429 || res.status === 504) {
-    const wait = await getWaitSeconds();
-    const err = new Error(`rate_limited:${wait}`);
-    err.rateLimited = true;
-    err.waitSeconds = wait || 30;
+  if (!res.ok) {
+    const err = new Error(`overpass_error:${res.status}`);
+    err.status = res.status;
     throw err;
   }
-  if (!res.ok) throw new Error(`Overpass HTTP ${res.status}`);
   const data = await res.json();
   return data.elements || [];
 }
@@ -162,7 +134,6 @@ async function runNearbySearch(lat, lon, radiusMeters, categories) {
   const enabled = categories.filter(c => c.enabled);
   if (enabled.length === 0) return [];
 
-  // Split into known (in OSM_TAG_MAP) and unknown categories
   const known = [];
   const unknown = [];
   for (const cat of enabled) {
@@ -176,8 +147,6 @@ async function runNearbySearch(lat, lon, radiusMeters, categories) {
 
   const promises = [];
 
-  // Known categories: ONE batched Overpass request for all of them
-  // Previously: N serial requests + N×300ms artificial delay. Now: 1 request.
   if (known.length > 0) {
     const allTagSets = known.flatMap(({ tagSets }) => tagSets);
     promises.push(
@@ -201,11 +170,10 @@ async function runNearbySearch(lat, lon, radiusMeters, categories) {
           }
           return results;
         })
-        .catch(e => { if (e.rateLimited) throw e; console.warn('Batch query failed:', e.message); return []; })
+        .catch(e => { console.warn('Batch query failed:', e.message); throw e; })
     );
   }
 
-  // Unknown categories: all queries fired in parallel, no delay
   for (const cat of unknown) {
     const terms = cat.searchTerms?.length ? cat.searchTerms : [cat.label.toLowerCase()];
     const matchedBy = {
@@ -218,12 +186,12 @@ async function runNearbySearch(lat, lon, radiusMeters, categories) {
       promises.push(
         fetchOverpass(buildBroadTagQuery(lat, lon, radiusMeters, term))
           .then(els => els.map(el => normalizeOSMElement(el, matchedBy)).filter(Boolean))
-          .catch(e => { if (e.rateLimited) throw e; return []; })
+          .catch(() => [])
       );
       promises.push(
         fetchOverpass(buildNameSearchQuery(lat, lon, radiusMeters, term))
           .then(els => els.map(el => normalizeOSMElement(el, matchedBy)).filter(Boolean))
-          .catch(e => { if (e.rateLimited) throw e; return []; })
+          .catch(() => [])
       );
     }
   }
