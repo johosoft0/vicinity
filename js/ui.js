@@ -250,7 +250,7 @@ function renderApp() {
         <div class="sheet-handle"></div>
         <div class="sheet-header">
           <span class="sheet-title">Nearby</span>
-          <button class="sheet-update" id="sheetUpdateBtn" type="button">↻ Update Places Only</button>
+          <button class="sheet-update" id="sheetUpdateBtn" type="button">↻ Update Places</button>
           <button class="sheet-close" id="sheetClose" type="button">×</button>
         </div>
         <div class="sheet-body" id="sheetBody"></div>
@@ -316,9 +316,9 @@ function initMapScreen() {
     <div class="map-overlay map-overlay--bottom">
       <div class="map-controls">
         <div class="radius-row" id="radiusRow">
-          <button class="radius-chip ${State.get().mapRadius === 400 ? 'active' : ''}" data-r="400" type="button">5 min</button>
+          <button class="radius-chip ${State.get().mapRadius === 200 ? 'active' : ''}" data-r="200" type="button">2 min</button>
           <button class="radius-chip ${State.get().mapRadius === 800 ? 'active' : ''}" data-r="800" type="button">10 min</button>
-          <button class="radius-chip ${State.get().mapRadius === 1200 ? 'active' : ''}" data-r="1200" type="button">15 min</button>
+          <button class="radius-chip ${State.get().mapRadius === 1600 ? 'active' : ''}" data-r="1600" type="button">20 min</button>
         </div>
         <div class="map-btn-row">
           <button class="map-btn map-btn--primary" id="refreshBtn" type="button">
@@ -384,7 +384,7 @@ function initMapScreen() {
     document.querySelectorAll('.radius-chip').forEach(c =>
       c.classList.toggle('active', parseInt(c.dataset.r) === r)
     );
-    const RADIUS_ZOOM = { 400: 15, 800: 14, 1200: 13 };
+    const RADIUS_ZOOM = { 200: 16, 800: 14, 1600: 13 };
     const zoom = RADIUS_ZOOM[r] ?? 14;
     const loc = State.get().currentLocation;
     if (loc) MapService.getMap()?.easeTo({ center: [loc.lon, loc.lat], zoom, duration: 400 });
@@ -1099,9 +1099,9 @@ function renderSettingsSection(body) {
       <label class="setting-row">
         <span>Default Radius</span>
         <select id="settingRadius" class="select-input">
-          <option value="400" ${s.defaultRadiusMeters === 400 ? 'selected' : ''}>400m (5 min)</option>
+          <option value="200" ${s.defaultRadiusMeters === 200 ? 'selected' : ''}>200m (2 min)</option>
           <option value="800" ${s.defaultRadiusMeters === 800 ? 'selected' : ''}>800m (10 min)</option>
-          <option value="1200" ${s.defaultRadiusMeters === 1200 ? 'selected' : ''}>1200m (15 min)</option>
+          <option value="1600" ${s.defaultRadiusMeters === 1600 ? 'selected' : ''}>1600m (20 min)</option>
         </select>
       </label>
       <label class="setting-row">
@@ -1386,4 +1386,4 @@ function showToast(msg) {
   document.body.appendChild(t);
   requestAnimationFrame(() => t.classList.add('show'));
   setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 300); }, 2500);
-    }
+}
