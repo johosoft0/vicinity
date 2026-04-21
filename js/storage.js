@@ -124,7 +124,7 @@ function isFavorite(id) {
 const DEFAULT_SETTINGS = {
   language: 'en',
   mapLabelLanguage: 'en',
-  defaultRadiusMeters: 1200,
+  defaultRadiusMeters: 800,
   autoOpenNearbyAfterRefresh: false,
   hideClosedPlaces: false,
   minRating: null,
