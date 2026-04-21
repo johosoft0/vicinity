@@ -1423,8 +1423,6 @@ function showRateLimitToast(seconds) {
       _rateLimitTimer = null;
       t.classList.remove('show');
       setTimeout(() => t.remove(), 300);
-      // Auto-retry
-      State.refreshLocation();
     } else {
       update();
     }
