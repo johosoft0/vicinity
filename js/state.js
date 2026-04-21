@@ -3,6 +3,7 @@
 
 import { Storage } from './storage.js';
 import { Search } from './search.js';
+import { Translation } from './translation.js';
 
 // ── App State ─────────────────────────────────────────────────────────────────
 
@@ -265,6 +266,21 @@ async function searchHere() {
 
 
 
+// ── Background translation ────────────────────────────────────────────────────
+
+async function translateResultNames(results) {
+  const cjk = results.filter(r => Translation.containsCJK(r.name) && !r.translatedName);
+  if (cjk.length === 0) return;
+  for (const result of cjk) {
+    const res = await Translation.translatePlaceName(result.name);
+    if (res?.translatedText) {
+      result.translatedName = res.translatedText;
+      emit('nearby:updated', state.nearbyResults);
+    }
+    await new Promise(r => setTimeout(r, 120));
+  }
+}
+
 async function runNearbySearch(coords) {
   if (!coords) return;
   const enabledCats = state.categories.filter(c => c.enabled);
@@ -284,6 +300,8 @@ async function runNearbySearch(coords) {
     if (state.settings.autoOpenNearbyAfterRefresh && results.length > 0) {
       setBottomSheet(true);
     }
+    // Translate CJK names in background — updates results progressively as cache fills
+    translateResultNames(results);
   } catch (e) {
     console.error('Search error:', e);
     setIsSearching(false);
