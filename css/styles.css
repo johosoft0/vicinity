@@ -797,6 +797,15 @@ textarea.text-input { resize: vertical; }
   box-shadow: var(--shadow);
 }
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.toast--ratelimit {
+  text-align: center;
+  line-height: 1.5;
+  padding: 0.6rem 1.25rem;
+  border-color: var(--accent);
+  color: var(--text);
+  white-space: normal;
+  max-width: 280px;
+}
 
 /* ── Mapbox overrides ───────────────────────────────────────────────────────── */
 .mapboxgl-ctrl-bottom-right { bottom: 0.5rem !important; right: 0.5rem !important; }
