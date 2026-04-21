@@ -28,7 +28,7 @@ const state = {
   bottomSheetOpen: false,
   setupSection: 'categories',  // 'categories' | 'places' | 'favorites' | 'settings' | 'import-export'
   onboarded: false,
-  mapRadius: 1200,
+  mapRadius: 800,
 };
 
 // ── Event Emitter ─────────────────────────────────────────────────────────────
