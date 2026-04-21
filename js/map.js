@@ -53,34 +53,32 @@ function init(containerId, mapboxToken) {
 
 function onLocationUpdated(coords) {
   const lngLat = [coords.lon, coords.lat];
-  const RADIUS_ZOOM = { 400: 15, 800: 14, 1200: 13 };
+  const RADIUS_ZOOM = { 200: 16, 800: 14, 1600: 13 };
   const zoom = RADIUS_ZOOM[State.get().mapRadius] ?? 14;
+  const dotClass = coords.manual ? 'user-dot user-dot--manual' : 'user-dot';
 
-  // Only fly to location for GPS fixes; manual pins are already placed on screen
   if (!coords.manual) {
     map.flyTo({ center: lngLat, zoom, speed: 1.2 });
   }
 
-  // User dot marker — upgrade from stale if needed
   if (userMarker) {
-    userMarker.getElement().className = 'user-dot';
+    userMarker.getElement().className = dotClass;
     userMarker.setLngLat(lngLat);
   } else {
     const el = document.createElement('div');
-    el.className = 'user-dot';
+    el.className = dotClass;
     userMarker = new mapboxgl.Marker({ element: el })
       .setLngLat(lngLat)
       .addTo(map);
   }
 
-  // Radius circle
   updateRadiusCircle(coords.lat, coords.lon, State.get().mapRadius);
 }
 
 function recenter() {
   const loc = State.get().currentLocation;
   if (!loc || !map) return;
-  const RADIUS_ZOOM = { 400: 15, 800: 14, 1200: 13 };
+  const RADIUS_ZOOM = { 200: 16, 800: 14, 1600: 13 };
   const zoom = RADIUS_ZOOM[State.get().mapRadius] ?? 14;
   map.easeTo({ center: [loc.lon, loc.lat], zoom, duration: 500 });
 }
@@ -221,10 +219,10 @@ function togglePinMode() {
       // Place or move the user marker, always draggable
       if (userMarker) {
         userMarker.setLngLat([coords.lon, coords.lat]);
-        userMarker.getElement().className = 'user-dot';
+        userMarker.getElement().className = 'user-dot user-dot--manual';
       } else {
         const el = document.createElement('div');
-        el.className = 'user-dot';
+        el.className = 'user-dot user-dot--manual';
         userMarker = new mapboxgl.Marker({ element: el, draggable: true })
           .setLngLat([coords.lon, coords.lat])
           .addTo(map);
