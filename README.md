@@ -2,119 +2,141 @@
 
 A browser-based, mobile-friendly walking discovery app. Keep a personal list of categories and specific places, then tap **Refresh Location** to find nearby matches on demand.
 
+No API keys. No accounts. No tracking. Everything runs in your browser.
+
 ---
 
 ## Quick Start
 
-### 1. Get a Mapbox token (free)
-1. Create a free account at [account.mapbox.com](https://account.mapbox.com)
-2. Copy your default public token (starts with `pk.`)
-
-### 2. Configure
-```bash
-cp config.example.js config.js
-```
-Edit `config.js` and replace `YOUR_MAPBOX_PUBLIC_TOKEN_HERE` with your token.
-
-### 3. Serve
-The app uses ES modules, so it requires a local HTTP server (not `file://`).
+No build step, no dependencies to install. Just serve the folder.
 
 ```bash
 # Python 3
 python3 -m http.server 8080
 
-# Node (npx)
+# Node
 npx serve .
 
-# VS Code: Live Server extension works great
+# VS Code: Live Server extension works too
 ```
 
-Then open `http://localhost:8080` in your browser.
+Then open `http://localhost:8080`.
+
+---
+
+## Deploy to GitHub Pages
+
+1. Push the repo to GitHub
+2. Go to **Settings → Pages → Source: main branch, / (root)**
+3. Done — live at `https://yourusername.github.io/vicinity/`
+
+No config files to edit. No tokens to manage.
 
 ---
 
 ## Architecture
 
-No build step, no bundler, no framework dependencies.
-
 ```
 vicinity/
-  index.html          — App entry point
-  config.js           — Your Mapbox token (gitignored)
-  config.example.js   — Token template
+  index.html              — App entry point
+  manifest.json           — PWA manifest
+  icons/
+    icon-192.png
+    icon-512.png
   css/
-    styles.css        — All styles
+    styles.css            — All styles
   js/
-    storage.js        — localStorage service (versioned keys, export/import)
-    state.js          — Central reactive state + event emitter
-    map.js            — Mapbox GL JS integration
-    search.js         — Overpass API (OSM) for POI search + Mapbox geocoding
-    translation.js    — MyMemory API for CJK name translation + cache
-    ui.js             — All DOM rendering and event wiring
+    storage.js            — localStorage service (versioned keys, export/import)
+    state.js              — Central reactive state + event emitter
+    map.js                — MapLibre GL JS integration + supercluster
+    search.js             — Overpass API (OSM) POI search + Nominatim geocoding
+    translation.js        — MyMemory API for CJK name translation + cache
+    ui.js                 — All DOM rendering and event wiring
 ```
 
-### Key design decisions vs. the original planning doc
+No framework. No bundler. ES modules only.
 
-| Topic | Plan Doc | Actual Implementation |
+---
+
+## Tech Stack
+
+| Concern | Solution | Cost |
 |---|---|---|
-| Framework | Next.js + React | Vanilla JS ES Modules (no build step) |
-| POI search | "Mapbox search" | **Overpass API (OpenStreetMap)** — free, no limits, rich tags |
-| Translation | Unspecified | **MyMemory API** — free, no key, good Japanese support |
-| Nearby list | Separate tab or sheet | **Bottom sheet** from the map screen |
-| Navigation | 3 tabs | **2 tabs** (Map + Setup) — Nearby is a sheet |
+| Map rendering | [MapLibre GL JS](https://maplibre.org/) | Free, open source |
+| Map tiles | [OpenFreeMap](https://openfreemap.org/) | Free, no key |
+| POI search | [Overpass API](https://overpass-api.de/) (OpenStreetMap) | Free, no key |
+| Geocoding | [Nominatim](https://nominatim.org/) (OSM) | Free, no key |
+| Translation | [MyMemory](https://mymemory.translated.net/) | Free, no key, 5k chars/day per IP |
+| Persistence | Browser localStorage | Free |
+
+Zero external dependencies at runtime beyond the CDN scripts in `index.html`.
 
 ---
 
-## Features (Phase 1–3)
+## Features
 
-- ✅ Onboarding with starter category quick-picks
-- ✅ Category management (add, toggle, delete)
-- ✅ Specific place management with Mapbox geocoding
-- ✅ Mapbox map with dark style
-- ✅ On-demand location refresh (no continuous tracking)
-- ✅ Radius selector (5/10/15 min walk)
-- ✅ Emoji markers for POI results and saved places
-- ✅ Radius circle overlay
-- ✅ Category filter chips
-- ✅ Nearby bottom sheet (sorted by distance)
-- ✅ Place detail screen with favorites
-- ✅ Export/import JSON data bundle
-- ✅ Settings panel
-- ✅ localStorage persistence with versioned keys
-- ✅ CJK translation cache architecture (MyMemory)
-
----
-
-## Adding the App to Your Phone
-
-On mobile, visit the app URL and use your browser's **Add to Home Screen** option. The app is designed to work well as a PWA-style bookmark.
-
----
-
-## Data Storage
-
-All data is stored locally in `localStorage` under `vicinity:v1:*` keys. Nothing is sent to any server except:
-- Mapbox (map tiles + geocoding) — see their privacy policy
-- Overpass API (OpenStreetMap) — anonymous POI queries
-- MyMemory (translation) — only triggered for CJK place names
+- Onboarding with starter category quick-picks
+- Category management — add, toggle, edit, delete
+- Specific place management with Nominatim geocoding lookup
+- Dark map with radius circle overlay
+- On-demand location refresh — no continuous GPS tracking
+- Manual pin placement — tap anywhere on the map to set location
+- Draggable pin — reposition after drop
+- GPS toggle — green = active, red = manual/off
+- Radius selector: 2 min (200m) / 10 min (800m) / 20 min (1600m)
+- Emoji markers for POI results and saved places
+- Marker clustering for dense cities (Tokyo, NYC, etc.)
+- Category filter chips
+- Nearby slide-up sheet with Update Places button
+- Place detail with Open in Maps (Google Maps, name + coords)
+- Favorites
+- CJK name translation (Japanese → English) with local cache
+- Export / import JSON data bundle
+- Settings panel
+- Last known location restored across sessions
+- PWA — add to home screen on iOS and Android
 
 ---
 
-## Adding New Category Types
+## Scalability Notes
+
+The free stack holds up well across usage tiers:
+
+- **OpenFreeMap tiles** — no rate limits, runs at scale, donation-funded
+- **Nominatim geocoding** — 1 req/sec limit, only called on place add (low frequency)
+- **Overpass POI search** — community servers with slot-based limits; fine for personal use and small teams; at 10k+ MAU consider self-hosting or using a mirror (overpass.kumi.systems)
+- **MyMemory translation** — 5k chars/day per user IP; local cache means repeat visits cost nothing
+
+---
+
+## Adding OSM Category Types
 
 Edit `js/search.js` and add an entry to `OSM_TAG_MAP`:
 
 ```js
-'your category': [{ amenity: 'your_osm_tag' }],
+'your category': [{ amenity: 'your_osm_value' }],
 ```
 
 Find OSM tags at [taginfo.openstreetmap.org](https://taginfo.openstreetmap.org).
 
 ---
 
-## Phase Roadmap
+## Data & Privacy
 
-- **Phase 4** — Translation integration (automatic CJK → EN on nearby results)
-- **Phase 5** — Marker clustering for dense urban areas  
-- **Phase 6** — "Trip profiles" — multiple lists/contexts
-- **Phase 7** — Favorites map layer, favorites-based quick filter
+All user data (categories, places, favorites, settings) lives in browser localStorage only. Queries go to:
+
+- **OpenFreeMap** — map tile requests (your rough viewport, no account)
+- **Overpass API** — anonymous POI queries with your coordinates
+- **Nominatim** — place name lookups when adding a specific place
+- **MyMemory** — Japanese place names only, cached after first translation
+
+No analytics. No ads. No server.
+
+---
+
+## Roadmap
+
+- Marker clustering refinements (count badge sizing)
+- Trip / list profiles (multiple saved lists)
+- Favorites map layer
+- Self-hosted Overpass option for high-traffic deployments
