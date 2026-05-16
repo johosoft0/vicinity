@@ -6,113 +6,16 @@ import { Storage } from './storage.js';
 import { Search } from './search.js';
 import { MapService } from './map.js';
 
-// Token is read dynamically so it picks up localStorage-saved value at boot
-// and can be updated live without a page reload.
-function getToken() {
-  return window.VICINITY_MAPBOX_TOKEN
-    || Storage.getSettings().mapboxToken
-    || '';
-}
-
 // ── Startup ───────────────────────────────────────────────────────────────────
 
 export function boot() {
   State.loadFromStorage();
 
-  // Seed window token from storage if config.js didn't provide one
-  const saved = Storage.getSettings().mapboxToken;
-  if (saved && !window.VICINITY_MAPBOX_TOKEN) {
-    window.VICINITY_MAPBOX_TOKEN = saved;
-  }
-
-  const token = getToken();
-
-  if (!token) {
-    renderTokenSetup();
-  } else if (!State.get().onboarded) {
+  if (!State.get().onboarded) {
     renderOnboarding();
   } else {
     renderApp();
   }
-}
-
-// ── Token Setup ───────────────────────────────────────────────────────────────
-
-function renderTokenSetup() {
-  const app = document.getElementById('app');
-  app.innerHTML = `
-    <div class="onboarding">
-      <div class="onboarding__inner">
-        <div class="onboarding__logo">
-          <span class="logo-mark">◎</span>
-          <h1>Vicinity</h1>
-        </div>
-        <p class="onboarding__tagline">One quick setup step.</p>
-
-        <div class="token-card">
-          <p class="token-card__desc">
-            Vicinity uses Mapbox to render maps and look up places.
-            A free Mapbox account gives you more than enough for personal use.
-          </p>
-          <a class="btn btn--outline token-reg-link"
-            href="https://account.mapbox.com/auth/signup/"
-            target="_blank" rel="noopener">
-            ① Create a free Mapbox account ↗
-          </a>
-          <p class="token-card__step">
-            Then copy your <strong>public token</strong> (starts with <code>pk.</code>)
-            from your <a href="https://account.mapbox.com/access-tokens/" target="_blank" rel="noopener">Access Tokens page</a>
-            and paste it below.
-          </p>
-          <input
-            id="tokenInput"
-            class="text-input mono token-input"
-            type="text"
-            placeholder="pk.eyJ1Ii..."
-            autocomplete="off"
-            spellcheck="false"
-          >
-          <p id="tokenError" class="token-error hidden">Token must start with <code>pk.</code></p>
-          <button class="btn btn--primary btn--full" id="tokenSaveBtn" type="button">
-            Save &amp; Continue
-          </button>
-          <p class="token-card__note">
-            Your token is stored only in your browser's local storage and is never sent anywhere except Mapbox.
-          </p>
-        </div>
-      </div>
-    </div>
-  `;
-
-  const input = document.getElementById('tokenInput');
-  const errEl = document.getElementById('tokenError');
-
-  document.getElementById('tokenSaveBtn').addEventListener('click', () => {
-    const val = input.value.trim();
-    if (!val.startsWith('pk.')) {
-      errEl.classList.remove('hidden');
-      input.focus();
-      return;
-    }
-    errEl.classList.add('hidden');
-    window.VICINITY_MAPBOX_TOKEN = val;
-    Storage.saveSettings({ ...Storage.getSettings(), mapboxToken: val });
-
-    if (!State.get().onboarded) {
-      renderOnboarding();
-    } else {
-      renderApp();
-    }
-  });
-
-  input.addEventListener('input', () => {
-    if (input.value.trim().startsWith('pk.')) errEl.classList.add('hidden');
-  });
-
-  // Allow Enter key
-  input.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') document.getElementById('tokenSaveBtn').click();
-  });
 }
 
 // ── Onboarding ────────────────────────────────────────────────────────────────
@@ -325,27 +228,17 @@ function initMapScreen() {
             <span id="refreshIcon">⊙</span> Refresh Location
           </button>
           <button class="map-btn map-btn--icon" id="pinBtn" title="Drop pin to set location" type="button">📍</button>
-          <button class="map-btn map-btn--icon map-btn--gps-toggle hidden" id="gpsToggleBtn" title="Clear manual pin, use GPS" type="button">⊙ GPS</button>
+          <button class="map-btn map-btn--icon map-btn--gps-toggle ${State.get().gpsEnabled ? 'gps-on' : 'gps-off'}" id="gpsToggleBtn" title="${State.get().gpsEnabled ? 'GPS on — tap to disable' : 'GPS off — tap to enable'}" type="button">⊙ GPS</button>
           <button class="map-btn map-btn--icon" id="recenterBtn" title="Recenter" type="button">⊕</button>
         </div>
       </div>
     </div>
   `;
 
-  const tok = getToken();
-  if (tok) {
-    const m = MapService.init('mapContainer', tok);
-    if (m && State.get().locationStale) {
-      const lastLoc = State.get().currentLocation;
-      m.once('load', () => MapService.showStaleLocation(lastLoc));
-    }
-  } else {
-    document.getElementById('mapContainer').innerHTML = `
-      <div class="map-placeholder">
-        <p>⚠️ No Mapbox token found.</p>
-        <p class="map-placeholder__sub">Go to Setup → Settings to add your token.</p>
-      </div>
-    `;
+  const m = MapService.init('mapContainer');
+  if (m && State.get().locationStale) {
+    const lastLoc = State.get().currentLocation;
+    m.once('load', () => MapService.showStaleLocation(lastLoc));
   }
 
   renderFilterChips();
@@ -372,7 +265,8 @@ function initMapScreen() {
 
   document.getElementById('gpsToggleBtn').addEventListener('click', (e) => {
     e.stopPropagation();
-    State.clearManualLocation();
+    const current = State.get().gpsEnabled;
+    State.setGpsEnabled(!current);
   });
 
   document.getElementById('radiusRow').addEventListener('click', (e) => {
@@ -544,7 +438,7 @@ function renderPlaceDetail(place) {
             href="https://www.google.com/maps/search/?api=1&query=${query}"
             target="_blank" rel="noopener">Open in Maps</a>`;
         })() : ''}
-        ${place.latitude && place.longitude && getToken() ? `
+        ${place.latitude && place.longitude ? `
           <button class="btn btn--ghost" id="detailFlyTo" type="button">Show on Map</button>
         ` : ''}
       </div>
@@ -982,11 +876,11 @@ function renderSpecificPlacesSection(body, editingId = null) {
   // Geocode lookup
   body.querySelector('#geocodeBtn')?.addEventListener('click', async () => {
     const query = document.getElementById('newPlaceAddress').value.trim();
-    if (!query || !getToken()) return;
+    if (!query) return;
     const btn = document.getElementById('geocodeBtn');
     btn.textContent = '⏳';
     try {
-      const results = await Search.geocodePlace(query, getToken());
+      const results = await Search.geocodePlace(query);
       const container = document.getElementById('geocodeResults');
       container.innerHTML = results.slice(0, 4).map((r, i) => `
         <button class="geocode-result" data-idx="${i}" type="button">
@@ -1115,15 +1009,7 @@ function renderSettingsSection(body) {
         <span>Hide closed places</span>
         <input type="checkbox" id="settingHideClosed" ${s.hideClosedPlaces ? 'checked' : ''}>
       </label>
-      <div class="setting-row setting-row--column">
-        <div class="setting-row-label">
-          <span>Mapbox Token</span>
-          <a class="token-help-link" href="https://account.mapbox.com/access-tokens/" target="_blank" rel="noopener">Get token ↗</a>
-        </div>
-        <input type="text" id="settingMapboxToken" class="text-input mono"
-          placeholder="pk.eyJ1..." value="${getToken()}">
-        <p class="token-hint">Starts with <code>pk.</code> — stored locally only.</p>
-      </div>
+
       <button class="btn btn--primary btn--sm" id="saveSettingsBtn" type="button">Save Settings</button>
     </div>
   `;
@@ -1132,24 +1018,11 @@ function renderSettingsSection(body) {
     const radius = parseInt(document.getElementById('settingRadius').value);
     const autoNearby = document.getElementById('settingAutoNearby').checked;
     const hideClosed = document.getElementById('settingHideClosed').checked;
-    const token = document.getElementById('settingMapboxToken').value.trim();
     State.updateSettings({
       defaultRadiusMeters: radius,
       autoOpenNearbyAfterRefresh: autoNearby,
       hideClosedPlaces: hideClosed,
     });
-    if (token && token !== getToken()) {
-      window.VICINITY_MAPBOX_TOKEN = token;
-      Storage.saveSettings({ ...State.get().settings, mapboxToken: token });
-      // Reinit map with new token if map screen is active
-      if (State.get().activeTab === 'map') {
-        MapService.init('mapContainer', token);
-      }
-    } else if (!token) {
-      // Token cleared — save empty
-      Storage.saveSettings({ ...State.get().settings, mapboxToken: '' });
-      window.VICINITY_MAPBOX_TOKEN = '';
-    }
     State.setMapRadius(radius);
     showToast('Settings saved');
   });
@@ -1335,10 +1208,10 @@ function wireStateListeners() {
     const btn = document.getElementById('refreshBtn');
     if (btn) {
       btn.classList.remove('loading');
-      const isManual = !!State.get().currentLocation?.manual;
+      const isManual = !State.get().gpsEnabled;
       btn.innerHTML = isManual
         ? '<span id="refreshIcon">⊙</span> Search Here <span class="loc-badge loc-badge--manual">Manual</span>'
-        : '<span id="refreshIcon">⊙</span> Refresh Location <span class="loc-badge loc-badge--gps">GPS</span>';
+        : '<span id="refreshIcon">⊙</span> Refresh Location';
     }
     const navCount = document.getElementById('navNearbyCount');
     if (navCount) navCount.textContent = results.length ? `(${results.length})` : '';
@@ -1365,19 +1238,25 @@ function wireStateListeners() {
     showToast('Search unavailable — Overpass server busy. Try again in a few seconds.');
   });
 
+  State.on('gps:toggled', (enabled) => {
+    const btn = document.getElementById('gpsToggleBtn');
+    if (!btn) return;
+    btn.classList.toggle('gps-on', enabled);
+    btn.classList.toggle('gps-off', !enabled);
+    btn.title = enabled ? 'GPS on — tap to disable' : 'GPS off — tap to enable';
+  });
+
   State.on('location:updated', (coords) => {
     const pinBtn = document.getElementById('pinBtn');
-    const gpsBtn = document.getElementById('gpsToggleBtn');
+    const gpsEnabled = State.get().gpsEnabled;
     if (pinBtn) {
       pinBtn.classList.remove('map-btn--pin-picking');
-      pinBtn.classList.toggle('map-btn--pin-set', !!coords.manual);
-      pinBtn.title = coords.manual ? 'Manual pin active — tap to re-place' : 'Drop pin to set location manually';
+      pinBtn.classList.toggle('map-btn--pin-set', !gpsEnabled);
+      pinBtn.title = !gpsEnabled ? 'Manual pin active — tap to re-place' : 'Drop pin to set location manually';
     }
-    // Show GPS toggle only when manual mode is active
-    if (gpsBtn) gpsBtn.classList.toggle('hidden', !coords.manual);
     const refreshBtn = document.getElementById('refreshBtn');
     if (refreshBtn && !refreshBtn.classList.contains('loading')) {
-      refreshBtn.innerHTML = coords.manual
+      refreshBtn.innerHTML = !gpsEnabled
         ? '<span id="refreshIcon">⊙</span> Search Here <span class="loc-badge loc-badge--manual">Manual</span>'
         : '<span id="refreshIcon">⊙</span> Refresh Location';
     }

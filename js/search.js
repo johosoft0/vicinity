@@ -1,7 +1,6 @@
 // search.js — POI search via Overpass API (OpenStreetMap)
 
 const OVERPASS_URL = 'https://overpass-api.de/api/interpreter';
-const MAPBOX_GEOCODE_URL = 'https://api.mapbox.com/geocoding/v5/mapbox.places';
 
 const OSM_TAG_MAP = {
   'sushi':              [{ amenity: 'restaurant', cuisine: 'sushi' }, { amenity: 'restaurant', cuisine: 'japanese' }],
@@ -49,7 +48,7 @@ function buildBatchQuery(lat, lon, radiusMeters, tagSets) {
       `way${cond}(around:${radiusMeters},${lat},${lon});`,
     ];
   });
-  return `[out:json][timeout:25];(${parts.join('')});out center 100;`;
+  return `[out:json][timeout:25];(${parts.join('')});out center 300;`;
 }
 
 function buildBroadTagQuery(lat, lon, radiusMeters, term) {
@@ -208,22 +207,29 @@ async function runNearbySearch(lat, lon, radiusMeters, categories) {
   return deduped;
 }
 
-// ── Geocoding ─────────────────────────────────────────────────────────────────
+// ── Geocoding via Nominatim (OSM) — free, no key ─────────────────────────────
 
-async function geocodePlace(query, mapboxToken) {
-  if (!mapboxToken) throw new Error('Mapbox token required for geocoding');
-  const encoded = encodeURIComponent(query);
-  const url = `${MAPBOX_GEOCODE_URL}/${encoded}.json?access_token=${mapboxToken}&limit=5`;
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`Geocoding HTTP ${res.status}`);
+const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
+
+async function geocodePlace(query) {
+  const params = new URLSearchParams({
+    q: query,
+    format: 'json',
+    limit: 5,
+    addressdetails: 1,
+  });
+  const res = await fetch(`${NOMINATIM_URL}?${params}`, {
+    headers: { 'Accept-Language': 'en', 'User-Agent': 'Vicinity-App/1.0' },
+  });
+  if (!res.ok) throw new Error(`Nominatim HTTP ${res.status}`);
   const data = await res.json();
-  return (data.features || []).map(f => ({
-    name: f.place_name,
-    shortName: f.text,
-    latitude: f.center[1],
-    longitude: f.center[0],
-    placeId: f.id,
-    placeType: f.place_type?.[0],
+  return data.map(r => ({
+    name: r.display_name,
+    shortName: r.name || r.display_name.split(',')[0],
+    latitude: parseFloat(r.lat),
+    longitude: parseFloat(r.lon),
+    placeId: r.place_id,
+    placeType: r.type,
   }));
 }
 
